@@ -5,13 +5,13 @@ from jobs.models import Job
 class Resume(models.Model):
     email = models.EmailField(max_length=255)
     user_id = models.CharField(max_length=24)
-    company_id = models.ForeignKey(
+    company = models.ForeignKey(
         Companies,
         on_delete=models.SET_NULL,
         null=True,
         blank=True
     )
-    job_id = models.ForeignKey(
+    job= models.ForeignKey(
         Job,
         on_delete=models.SET_NULL,
         null=True,
@@ -30,7 +30,10 @@ class Resume(models.Model):
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
+
     def __str__(self):
         return self.email
 
 # Create your models here.
+    class Meta:
+        db_table = "resume"
