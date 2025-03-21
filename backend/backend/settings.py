@@ -49,6 +49,10 @@ SIMPLE_JWT = {
 'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
 "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+# SIMPLE_JWT = {
+# 'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+# "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+# }
 
 
 # Application definition
@@ -114,7 +118,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'jobsOpen',
         'USER': 'postgres',
-        'PASSWORD': 'password',
+        'PASSWORD': 'trung2205',
         'HOST': 'localhost',
         'PORT': '5432',
     }
