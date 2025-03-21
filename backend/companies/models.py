@@ -2,7 +2,7 @@ from django.db import models
 
 # Create your models here.
 
-class Company(models.Model):
+class Companies(models.Model):
     name = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
@@ -14,3 +14,7 @@ class Company(models.Model):
     created_by = models.JSONField(blank=True, null=True)
     updated_by = models.JSONField(blank=True, null=True)
     delete_by = models.JSONField(blank=True, null=True)
+
+
+    class Meta:
+        db_table = "companies"
