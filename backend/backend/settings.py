@@ -33,26 +33,23 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 REST_FRAMEWORK = {
 
-    # 'DEFAULT_AUTHENTICATION_CLASSES': [
-    #     'rest_framework_simplejwt.authentication.JWTAuthentication',
-    # ],
-    # 'DEFAULT_PERMISSION_CLASSES': [
-    #     'rest_framework.permissions.IsAuthenticated',
-    # ],      
-    # 
-       'DEFAULT_AUTHENTICATION_CLASSES': [],  # Không sử dụng authentication
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Cho phép tất cả mọi người truy cập API mà không cần xác thực
-    ],              
+        'rest_framework.permissions.IsAuthenticated',
+    ],      
 }
+
+AUTH_USER_MODEL = 'users.User'
+
 SIMPLE_JWT = {
-'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-"REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # Token có hiệu lực trong 1 ngày
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7), # Refresh token có hiệu lực trong 7 ngày
+    "ROTATE_REFRESH_TOKENS": True, # Cấp lại refresh token mới khi refresh
+    # "BLACKLIST_AFTER_ROTATION": True, # Vô hiệu hóa refresh token cũ sau khi cấp mới
+    "AUTH_HEADER_TYPES": ("Bearer",), # Token sẽ nằm trong Header Authorization: Bearer <token>
 }
-# SIMPLE_JWT = {
-# 'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-# "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
-# }
 
 
 # Application definition
@@ -73,8 +70,8 @@ INSTALLED_APPS = [
     "file" ,
 
     "rest_framework_simplejwt",
-
     "rest_framework",
+    # 'rest_framework_simplejwt.token_blacklist',  # Để hỗ trợ logout
     "corsheaders"
 ]
 

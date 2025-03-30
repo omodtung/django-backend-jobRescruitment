@@ -4,36 +4,32 @@ from rest_framework.views import APIView
 from rest_framework import status
 from django.db.models import Q
 from django.core.paginator import Paginator
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import User
 from .serializers import UserSerializers
+from .service import find_all, find_one, remove
+from utils.CheckUtils import check_permission
 
+pathUser = "/api/users/"
 # Create your views here.
 
 class UserList(APIView):
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAuthenticated()]  # POST yêu cầu xác thực
+        return [AllowAny()]  # GET không yêu cầu xác thực
+    
     def get(self, request):
-        """Lấy danh sách các User"""
-        # userList = User.objects.all()
-        # serializer = UserSerializers(userList, many=True)
-        # return Response(serializer.data, status=status.HTTP_200_OK)
+        print(request.headers.get('Authorization'))
+        qs = request.GET.dict() # Lấy toàn bộ chuỗi lọc
 
-        # Lay danh sach query
-        current_page = int(request.GET.get("current", 1))  # Mặc định trang 1
-        page_size = int(request.GET.get("pageSize", 10))  # Mặc định 10 item/trang
-        sort = request.GET.get("sort", "id")  # Sắp xếp theo ID nếu không có
-        qs = request.GET.get("qs", "")  # Chuỗi lọc
-
-        # Lọc dữ liệu
-        filters = Q() # Taọ đối tượng Q Object chứa điều kiện lọc
-        if "name" in request.GET:
-            filters &= Q(name__icontains=request.GET["name"]) # Thêm điều kiện tìm kiếm theo tên
-        if "email" in request.GET:
-            filters &= Q(email__icontains=request.GET["email"]) # Thêm điều kiện tìm kiếm theo email
+        # Lay danh sách tham số đặc biệt
+        current_page = int(qs.pop("current", 1))  # Mặc định trang 1
+        page_size = int(qs.pop("pageSize", 10))  # Mặc định 10 item/trang
 
         # Truy vấn dữ liệu + Population
-        # queryset = User.objects.filter(filters).select_related("role").order_by(sort)
-        queryset = User.objects.filter(filters).order_by(sort)
-
-
+        queryset = find_all(qs)
+        
         # Tính toán phân trang
         paginator = Paginator(queryset, page_size)
         total_items = paginator.count
@@ -52,16 +48,24 @@ class UserList(APIView):
 
         # Trả về kết quả giống NestJS
         return Response({
-            "meta": {
-                "current": current_page,
-                "pageSize": page_size,
-                "pages": total_pages,
-                "totals": total_items,
-            },
+            "statusCode": status.HTTP_200_OK,
+            "message": 'Fetch List User with paginate----',
+            "data": {
+                "meta": {
+                    "current": current_page,
+                    "pageSize": page_size,
+                    "pages": total_pages,
+                    "totals": total_items,
+                },
             "result": serializer.data
+            }
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
+        user = request.user
+        check_result = check_permission(user.email, pathUser, "POST")
+        if check_result["code"] == 1:
+            return Response(check_result["message"], status=status.HTTP_403_FORBIDDEN)
         """ Tạo user mới """
         serializer = UserSerializers(data=request.data)
         if serializer.is_valid():
@@ -70,6 +74,11 @@ class UserList(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class UserDetail(APIView):
+    def get_permissions(self):
+        if self.request.method == 'POST' or self.request.method == 'PUT' or self.request.method == 'DELETE':
+            return [IsAuthenticated()]  # POST yêu cầu xác thực
+        return [AllowAny()]  # GET không yêu cầu xác thực
+    
     # helper function
     def get_object(self, pk):
         """Lay danh sach User theo pk"""
@@ -77,15 +86,18 @@ class UserDetail(APIView):
             return User.objects.get(id = pk)
         except User.DoesNotExist:
             return None
-       
+    
     # Endpoint GET    
     def get(self, request, pk):
         """Lay thong tin chi tiet cua User"""
-        user = self.get_object(pk)
-        if user is None:
-            return Response({"error": "User not found"}, status = status.HTTP_404_NOT_FOUND)
-        serializer = UserSerializers(user)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        reponse = find_one(pk)
+        if reponse.get("code") == 1:
+            reponse["statusCode"] = status.HTTP_404_NOT_FOUND
+            del reponse["code"]
+            return Response(reponse, status = status.HTTP_404_NOT_FOUND)
+        reponse["statusCode"] = status.HTTP_200_OK
+        del reponse["code"]
+        return Response(reponse, status = status.HTTP_200_OK)
 
     def put(self, request, pk):
         """ Cập nhật thông tin user """
@@ -98,11 +110,30 @@ class UserDetail(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+    # @permission_classes([IsAuthenticated]) # Cần JWT token để truy cập API này
+    # def patch(self, request, pk):
+    #     """ Cập nhật thông tin user """
+    #     user = self.get_object(pk)
+    #     if user is None:
+    #         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+    #     serializer = UserSerializers(user, data=request.data, partial=True)
+    #     if serializer.is_valid():
+    #         serializer.save()
+    #         return Response(serializer.data)
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
     def delete(self, request, pk):
+        user = request.user
+        check_result = check_permission(user.email, pathUser, "DELETE")
+        if check_result["code"] == 1:
+            return Response(check_result["message"], status=status.HTTP_403_FORBIDDEN)
         """ Xóa user """
-        user = self.get_object(pk)
-        if user is None:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-        user.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        response = remove(pk, "")
+        if response.get("code") == 1:
+            response["statusCode"] = status.HTTP_404_NOT_FOUND
+            del response["code"]
+            return Response(response, status=status.HTTP_404_NOT_FOUND)
+        response["statusCode"] = status.HTTP_204_NO_CONTENT
+        del response["code"]
+        return Response(response, status=status.HTTP_204_NO_CONTENT)
     

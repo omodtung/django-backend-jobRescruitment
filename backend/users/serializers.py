@@ -9,22 +9,23 @@ class UserSerializers(serializers.ModelSerializer):
     class Meta:
         model = User  
         fields = [
-            "name", "email", "password", "age", "gender", "address",
+            "id", "name", "email", "password", "age", "gender", "address",
             "company", "role", "refresh_token", "created_by", "updated_by", "is_deleted", "deleted_at"
         ]
 
-    def validate(self, data):
-        if data.get('email'):
-            email = data.get('email')
-            email_regex = r'^[\w\.-]+@[\w\.-]+\.\w+$'
-            
-            if not re.match(email_regex, email):
-                raise serializers.ValidationError({"email": "Email không đúng định dạng."})
-            
-            """ Kiểm tra email đã tồn tại hay chưa """
-            if User.objects.filter(email=email).exists():
-                raise serializers.ValidationError("Email đã được sử dụng.")
-        return data
+    def validate_email(self, value):
+        """ Kiểm tra định dạng email """
+        email_regex = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+        if not re.match(email_regex, value):
+            print("Email không đúng định dạng.")
+            raise serializers.ValidationError("Email không đúng định dạng.")
+
+        """ Kiểm tra email đã tồn tại """
+        if User.objects.filter(email=value).exists():
+            print("Email đã được sử dụng.")
+            raise serializers.ValidationError("Email đã được sử dụng.")
+
+        return value
 
     def create(self, validated_data):
         """Tạo mới user với password được mã hóa."""
