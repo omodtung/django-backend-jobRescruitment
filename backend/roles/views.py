@@ -6,18 +6,72 @@ from rest_framework.views import APIView
 from rest_framework import status
 from .models import Role
 from .serializers import RoleSerializers
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from .service import find_all
+from django.core.paginator import Paginator
+from copy import deepcopy
 
 # Create your views here.
 
 class RoleList(APIView):
+    def get_permissions(self):
+        if self.request.method == 'POST' or self.request.method == 'PATCH':
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
     def get(self, request):
-        """Lấy danh sách các Role"""
-        roleList = Role.objects.all()
-        serializer = RoleSerializers(roleList, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        qs = request.GET.dict()
+
+        current_page = int(qs.pop("current", 1))
+        page_size = int(qs.pop("pageSize", 10))
+
+        # Phan trang
+        queryset = find_all(qs)
+
+        # Tinh toan phan trang
+        paginator = Paginator(queryset, page_size)
+        total_items = paginator.count
+        total_pages = paginator.num_pages
+
+        try:
+            roles = paginator.page(current_page)
+        except:
+            return Response(
+                {"error": "Page out of range"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = RoleSerializers(roles, many=True)
+
+        return Response({
+            "statusCode": status.HTTP_200_OK,
+            "message": 'Fetch List User with paginate----',
+            "data": {
+                "meta": {
+                    "current": current_page,
+                    "pageSize": page_size,
+                    "pages": total_pages,
+                    "totals": total_items,
+                },
+            "result": serializer.data
+            }
+        }, status=status.HTTP_200_OK)
 
     def post(self, request):
-        """ Tạo Role mới """
+        # Lấy user sau khi xác thực tokentoken
+        user = request.user
+        # Cap nhat nguoi tao created_by and updated_by
+        data = deepcopy(request.data)
+        data["updatedBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+        data["createdBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+        print("data: ", data)
+
         serializer = RoleSerializers(data=request.data)
         if serializer.is_valid():
             newRole = serializer.save()

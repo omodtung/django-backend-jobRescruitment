@@ -2,25 +2,28 @@ from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
-from django.db.models import Q
 from django.core.paginator import Paginator
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import User
 from .serializers import UserSerializers
 from .service import find_all, find_one, remove
-from utils.CheckUtils import check_permission
-
-pathUser = "/api/users/"
-# Create your views here.
+from copy import deepcopy
 
 class UserList(APIView):
     def get_permissions(self):
-        if self.request.method == 'POST':
-            return [IsAuthenticated()]  # POST yêu cầu xác thực
-        return [AllowAny()]  # GET không yêu cầu xác thực
+        if self.request.method == 'POST' or self.request.method == 'PATCH':
+            return [IsAuthenticated()]
+        return [AllowAny()]
+    
+    # helper function
+    def get_object(self, pk):
+        """Lay danh sach User theo pk"""
+        try:
+            return User.objects.get(id = pk)
+        except User.DoesNotExist:
+            return None
     
     def get(self, request):
-        print(request.headers.get('Authorization'))
         qs = request.GET.dict() # Lấy toàn bộ chuỗi lọc
 
         # Lay danh sách tham số đặc biệt
@@ -62,20 +65,60 @@ class UserList(APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
+        # Lấy user sau khi xác thực tokentoken
         user = request.user
-        check_result = check_permission(user.email, pathUser, "POST")
-        if check_result["code"] == 1:
-            return Response(check_result["message"], status=status.HTTP_403_FORBIDDEN)
-        """ Tạo user mới """
-        serializer = UserSerializers(data=request.data)
+        # Cap nhat nguoi tao created_by and updated_by
+        data = deepcopy(request.data)
+        data["updatedBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+        data["createdBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+
+        print("user view: ", data)
+        """ 
+        Tạo user mới 
+        Khi gọi UserSerializers(data=request.data) -> không có instance mặc định dùng hàm create() trong serializer.pypy
+        """
+        serializer = UserSerializers(data=data)
         if serializer.is_valid():
             newUser = serializer.save()
             return Response(UserSerializers(newUser).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request):
+        # Lấy user sau khi xác thực tokentoken
+        user = request.user
+        # Chuẩn bị dữ liệu để truyền vào serializer
+        # Cap nhat nguoi tao created_by and updated_by
+        data = deepcopy(request.data)
+        data["updatedBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+
+        # Lay nguoi dung can update
+        user_id_update = request.data.get("id")
+        user_update = self.get_object(user_id_update)
+        
+        """ 
+        Cập nhật thông tin UserUser
+        Khi gọi UserSerializers(user_update, data=request.data, partial=True) 
+        -> Có instance và partial=True sẽ gọi hàm update() phương thức PATCH trong serializer.pypy
+        """
+        serializer = UserSerializers(user_update, data=data, partial=True)  # partial=True cho phép PATCH
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class UserDetail(APIView):
     def get_permissions(self):
-        if self.request.method == 'POST' or self.request.method == 'PUT' or self.request.method == 'DELETE':
+        if self.request.method == 'DELETE':
             return [IsAuthenticated()]  # POST yêu cầu xác thực
         return [AllowAny()]  # GET không yêu cầu xác thực
     
@@ -98,37 +141,12 @@ class UserDetail(APIView):
         reponse["statusCode"] = status.HTTP_200_OK
         del reponse["code"]
         return Response(reponse, status = status.HTTP_200_OK)
-
-    def put(self, request, pk):
-        """ Cập nhật thông tin user """
-        user = self.get_object(pk)
-        if user is None:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = UserSerializers(user, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    # @permission_classes([IsAuthenticated]) # Cần JWT token để truy cập API này
-    # def patch(self, request, pk):
-    #     """ Cập nhật thông tin user """
-    #     user = self.get_object(pk)
-    #     if user is None:
-    #         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-    #     serializer = UserSerializers(user, data=request.data, partial=True)
-    #     if serializer.is_valid():
-    #         serializer.save()
-    #         return Response(serializer.data)
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
+        """ Lay user da xac thuc """
         user = request.user
-        check_result = check_permission(user.email, pathUser, "DELETE")
-        if check_result["code"] == 1:
-            return Response(check_result["message"], status=status.HTTP_403_FORBIDDEN)
         """ Xóa user """
-        response = remove(pk, "")
+        response = remove(pk, user)
         if response.get("code") == 1:
             response["statusCode"] = status.HTTP_404_NOT_FOUND
             del response["code"]

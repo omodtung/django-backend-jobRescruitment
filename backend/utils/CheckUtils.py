@@ -17,8 +17,8 @@ def check_permission(email: str, path: str, method: str):
             }
 
         return {
-            "code": 1,
-            "message": "User not permission!"
+            "code": 0,
+            "message": "Pass!"
         }
     except User.DoesNotExist:
         return {

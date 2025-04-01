@@ -1,3 +1,4 @@
+from datetime import timezone
 from django.db import models
 from django.utils.timezone import now
 from companies.models import Companies
@@ -59,6 +60,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True, null=True,
         help_text="Object containing updater details, e.g., {'_id': ObjectID, 'email': string}"
     )
+    deleted_by = models.JSONField(default=dict, blank=True)
 
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(blank=True, null=True)
@@ -72,10 +74,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'email'  # Sử dụng email để đăng nhập thay vì username
     REQUIRED_FIELDS = []  # Các trường khác cần khi tạo superuser
 
-    def soft_delete(self):
-        """ Đánh dấu user là đã xóa thay vì xóa hẳn """
+    def soft_delete(self, deleted_by=None):
+    
         self.is_deleted = True
-        self.deleted_at = now()
+        self.deleted_at = timezone.now()
+        if deleted_by:
+            self.deleted_by = deleted_by
         self.save()
 
     def delete(self, *args, **kwargs):

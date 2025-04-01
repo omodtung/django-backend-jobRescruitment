@@ -44,7 +44,7 @@ REST_FRAMEWORK = {
 AUTH_USER_MODEL = 'users.User'
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # Token có hiệu lực trong 1 ngày
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),  # Token có hiệu lực trong 1 ngày
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7), # Refresh token có hiệu lực trong 7 ngày
     "ROTATE_REFRESH_TOKENS": True, # Cấp lại refresh token mới khi refresh
     # "BLACKLIST_AFTER_ROTATION": True, # Vô hiệu hóa refresh token cũ sau khi cấp mới

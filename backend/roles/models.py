@@ -1,11 +1,12 @@
 
 
 
+from datetime import timezone
 from django.db import models
 from permissions.models    import Permissions
 
 class Role(models.Model):
-
+    id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)  # Added unique constraint
     description = models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
