@@ -10,10 +10,12 @@ from .service import find_all, find_one, remove
 from copy import deepcopy
 
 class UserList(APIView):
-    def get_permissions(self):
-        if self.request.method == 'POST' or self.request.method == 'PATCH':
-            return [IsAuthenticated()]
-        return [AllowAny()]
+    permission_classes = [AllowAny]
+    # def get_permissions(self):
+    #     if self.request.method == 'POST' or self.request.method == 'PATCH':
+    #         return [IsAuthenticated()]
+    #     return [AllowAny()]
+
     
     # helper function
     def get_object(self, pk):
@@ -66,19 +68,19 @@ class UserList(APIView):
 
     def post(self, request):
         # Lấy user sau khi xác thực tokentoken
-        user = request.user
+        # user = request.user
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
-        data["updatedBy"] = {
-            "id": user.id,
-            "email": user.email
-        }
-        data["createdBy"] = {
-            "id": user.id,
-            "email": user.email
-        }
+        # data["updatedBy"] = {
+        #     "id": user.id,
+        #     "email": user.email
+        # }
+        # data["createdBy"] = {
+        #     "id": user.id,
+        #     "email": user.email
+        # }
 
-        print("user view: ", data)
+        # print("user view: ", data)
         """ 
         Tạo user mới 
         Khi gọi UserSerializers(data=request.data) -> không có instance mặc định dùng hàm create() trong serializer.pypy
