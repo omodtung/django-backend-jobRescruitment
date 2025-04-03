@@ -7,7 +7,7 @@ from rest_framework import status
 from .models import Role
 from .serializers import RoleSerializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .service import find_all
+from .service import find_all, remove, find_one
 from django.core.paginator import Paginator
 from copy import deepcopy
 
@@ -15,9 +15,17 @@ from copy import deepcopy
 
 class RoleList(APIView):
     def get_permissions(self):
-        if self.request.method == 'POST' or self.request.method == 'PATCH':
+        if self.request.method == 'POST':
             return [IsAuthenticated()]
         return [AllowAny()]
+    
+    # helper function
+    def get_object(self, pk):
+        """Lay danh sach Role theo pk"""
+        try:
+            return Role.objects.get(id = pk)
+        except Role.DoesNotExist:
+            return None
 
     def get(self, request):
         qs = request.GET.dict()
@@ -60,6 +68,7 @@ class RoleList(APIView):
     def post(self, request):
         # Lấy user sau khi xác thực tokentoken
         user = request.user
+
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
         data["updatedBy"] = {
@@ -70,15 +79,19 @@ class RoleList(APIView):
             "id": user.id,
             "email": user.email
         }
-        print("data: ", data)
 
-        serializer = RoleSerializers(data=request.data)
+        serializer = RoleSerializers(data=data)
         if serializer.is_valid():
             newRole = serializer.save()
             return Response(RoleSerializers(newRole).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class RoleDetail(APIView):
+    def get_permissions(self):
+        if self.request.method == 'DELETE' or self.request.method == 'PATCH':
+            return [IsAuthenticated()]  # POST yêu cầu xác thực
+        return [AllowAny()]  # GET không yêu cầu xác thực
+    
     # helper function
     def get_object(self, pk):
         """Lay danh sach Role theo pk"""
@@ -86,32 +99,64 @@ class RoleDetail(APIView):
             return Role.objects.get(id = pk)
         except Role.DoesNotExist:
             return None
+        
+    def patch(self, request, pk):
+        # Lấy user sau khi xác thực tokentoken
+        user = request.user
+        # Chuẩn bị dữ liệu để truyền vào serializer
+        data = deepcopy(request.data)
+        data["updatedBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+
+        # Lay nguoi dung can update
+        role_update = self.get_object(pk)
+        
+        """ 
+        Cập nhật thông tin UserUser
+        Khi gọi UserSerializers(user_update, data=request.data, partial=True) 
+        -> Có instance và partial=True sẽ gọi hàm update() phương thức PATCH trong serializer.pypy
+        """
+        serializer = RoleSerializers(role_update, data=data, partial=True)  # partial=True cho phép PATCH
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
        
     # Endpoint GET    
     def get(self, request, pk):
-        """Lay thong tin chi tiet cua Role"""
-        role = self.get_object(pk)
-        if role is None:
-            return Response({"error": "Role not found"}, status = status.HTTP_404_NOT_FOUND)
-        serializer = RoleSerializers(role)
-        return Response(serializer.data, status = status.HTTP_200_OK)
+        """Lay thong tin chi tiet cua User"""
+        reponse = find_one(pk)
+        if reponse.get("code") == 1:
+            reponse["statusCode"] = status.HTTP_404_NOT_FOUND
+            del reponse["code"]
+            return Response(reponse, status = status.HTTP_404_NOT_FOUND)
+        reponse["statusCode"] = status.HTTP_200_OK
+        del reponse["code"]
+        return Response(reponse, status = status.HTTP_200_OK)
 
-    def put(self, request, pk):
-        """ Cập nhật thông tin Role """
-        role = self.get_object(pk)
-        if role is None:
-            return Response({"error": "Role not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = RoleSerializers(role, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # def put(self, request, pk):
+    #     """ Cập nhật thông tin Role """
+    #     role = self.get_object(pk)
+    #     if role is None:
+    #         return Response({"error": "Role not found"}, status=status.HTTP_404_NOT_FOUND)
+    #     serializer = RoleSerializers(role, data=request.data)
+    #     if serializer.is_valid():
+    #         serializer.save()
+    #         return Response(serializer.data)
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
-        """ Xóa Role """
-        role = self.get_object(pk)
-        if role is None:
-            return Response({"error": "Role not found"}, status=status.HTTP_404_NOT_FOUND)
-        role.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        """ Lay user da xac thuc """
+        user = request.user
+        """ Xóa user """
+        response = remove(pk, user)
+        if response.get("code") == 1:
+            response["statusCode"] = status.HTTP_404_NOT_FOUND
+            del response["code"]
+            return Response(response, status=status.HTTP_404_NOT_FOUND)
+        response["statusCode"] = status.HTTP_204_NO_CONTENT
+        del response["code"]
+        return Response(response, status=status.HTTP_204_NO_CONTENT)
     

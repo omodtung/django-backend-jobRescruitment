@@ -3,7 +3,7 @@ from .models import User
 from utils.CheckUtils import check_permission
 from rest_framework.exceptions import PermissionDenied
 
-pathUser = "/api/users/"
+pathUser = "/api/users"
 
 def find_all(qs: str):
     sort = qs.pop("sort", None)  # Sắp xếp

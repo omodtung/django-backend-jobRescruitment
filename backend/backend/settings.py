@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    "authentication",
     "users",
     "jobs",
     "roles",
@@ -71,7 +72,7 @@ INSTALLED_APPS = [
     "companies",
     "rest_framework_simplejwt",
     "rest_framework",
-    # 'rest_framework_simplejwt.token_blacklist',  # Để hỗ trợ logout
+    'rest_framework_simplejwt.token_blacklist',  # Để hỗ trợ logout
     "corsheaders"
 ]
 
@@ -115,8 +116,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'jobsOpen',
         'USER': 'postgres',
-        # 'PASSWORD': 'trung2205',
-             'PASSWORD': 'password',
+        'PASSWORD': 'trung2205',
+            #  'PASSWORD': 'password',
         'HOST': 'localhost',
         'PORT': '5432',
     }

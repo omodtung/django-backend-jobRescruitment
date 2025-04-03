@@ -2,17 +2,16 @@ from .models import User
 from roles.models import Role
 from companies.models import Companies
 from rest_framework import serializers
-from rest_framework.exceptions import PermissionDenied
 import re
 from django.contrib.auth.hashers import make_password
-from utils.CheckUtils import check_permission
 from utils.Convert import to_snake_case
 
-pathUser = "/api/users/"
+pathUser = "/api/users"
 
 class UserSerializers(serializers.ModelSerializer):
     password = serializers.CharField(write_only = True) # Only get password and not return
     # Setup ten key truoc khi tra ve client
+    _id = serializers.JSONField(source="id", required=False, read_only=False)
     createdBy = serializers.JSONField(source="created_by", required=False, read_only=False)
     updatedBy = serializers.JSONField(source="updated_by", required=False, read_only=False)
     refreshToken = serializers.CharField(source="refresh_token", required=False, read_only=False)
@@ -24,7 +23,7 @@ class UserSerializers(serializers.ModelSerializer):
     class Meta:
         model = User  
         fields = [
-            "id", "name", "email", "password", "age", "gender", "address",
+            "_id", "name", "email", "password", "age", "gender", "address",
             "company", "role", "refreshToken", "createdBy", "updatedBy", 
             "createdAt", "updatedAt", "deletedBy", "deletedAt", "isDeleted"
         ]
@@ -49,7 +48,11 @@ class UserSerializers(serializers.ModelSerializer):
         nếu không sẽ mặc định trả về role.name
         """
         if not role:
-            return role
+            try:
+                role = Role.objects.get(name="Customer")
+                return role.id  # Trả về ID nếu tìm thấy đối tượng
+            except Role.DoesNotExist:
+                return role
         if not Role.objects.filter(id=role.id).exists():
             raise serializers.ValidationError("Role không tồn tại.")
         return role.id  # ✅ Phải trả về giá trị đã kiểm tra (là ID)
@@ -70,17 +73,12 @@ class UserSerializers(serializers.ModelSerializer):
         """
         Mô tả cách hoạt động:
         B1: Convert tên biến thành kiểu snake_case để lưu vào db
-        B2: Check quyền truy cập người thực hiện tác vụ
-        B3: Chuyển đổi tên thuộc tính nhận vào là role thành role_id để lưu vào db
+        B2: Chuyển đổi tên thuộc tính nhận vào là role thành role_id để lưu vào db
         B4: Tạo mới user
         """
 
         # Convert snake_case
         validated_data = to_snake_case(validated_data)
-        # Check permissions
-        # check_result = check_permission(validated_data["created_by"].get("email"), pathUser, "POST")
-        # if check_result["code"] == 1:
-        #     raise PermissionDenied(detail=check_result["message"])
         
         # Convert 'role' to 'role_id'
         validated_data["role_id"] = validated_data.pop("role", None)
@@ -95,23 +93,12 @@ class UserSerializers(serializers.ModelSerializer):
         Mô tả cách hoạt động:
         B1: Convert tên biến thành kiểu snake_case để lưu vào db
         B2: Kiểm tra method -> partial = True -> PATCH | False -> PUT
-        B3: Check quyền truy cập người thực hiện tác vụ
-        B4: Chuyển đổi tên thuộc tính nhận vào là role thành role_id để lưu vào db
+        B3: Chuyển đổi tên thuộc tính nhận vào là role thành role_id để lưu vào db
         B4: Kiểm tra nếu có trường password thì cập nhật lại
         B5: Cập nhật các trường khác từ validated_data vào instance để lưu vào db
         """
         # Convert snake_case
         validated_data = to_snake_case(validated_data)
-
-        # self.parital = True -> PATCH and self.partial = FALSE -> PUT
-        if self.partial:
-            check_result = check_permission(validated_data["updated_by"].get("email"), pathUser, "PATCH")
-            if check_result["code"] == 1:
-                raise PermissionDenied(detail=check_result["message"])
-        else:
-            check_result = check_permission(validated_data["updated_by"].get("email"), pathUser, "PUT")
-            if check_result["code"] == 1:
-                raise PermissionDenied(detail=check_result["message"])
             
         # Convert 'role' to 'role_id'
         instance.role_id = validated_data.pop("role", None)
