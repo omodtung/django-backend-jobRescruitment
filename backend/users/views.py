@@ -8,11 +8,15 @@ from .models import User
 from .serializers import UserSerializers
 from .service import find_all, find_one, remove
 from copy import deepcopy
+from rest_framework.exceptions import PermissionDenied
+from utils.CheckUtils import check_permission
 
+
+pathUser = "/api/users"
 class UserList(APIView):
     permission_classes = [AllowAny]
     # def get_permissions(self):
-    #     if self.request.method == 'POST' or self.request.method == 'PATCH':
+    #     if self.request.method == 'POST':
     #         return [IsAuthenticated()]
     #     return [AllowAny()]
 
@@ -68,19 +72,23 @@ class UserList(APIView):
 
     def post(self, request):
         # Lấy user sau khi xác thực tokentoken
-        # user = request.user
+        user = request.user
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
-        # data["updatedBy"] = {
-        #     "id": user.id,
-        #     "email": user.email
-        # }
-        # data["createdBy"] = {
-        #     "id": user.id,
-        #     "email": user.email
-        # }
+        data["updatedBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+        data["createdBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
 
-        # print("user view: ", data)
+        # Check permission of user
+        # check_result = check_permission(user.email, pathUser, "POST")
+        # if check_result["code"] == 1:
+        #     raise PermissionDenied(detail=check_result["message"])
+        
         """ 
         Tạo user mới 
         Khi gọi UserSerializers(data=request.data) -> không có instance mặc định dùng hàm create() trong serializer.pypy
@@ -90,37 +98,10 @@ class UserList(APIView):
             newUser = serializer.save()
             return Response(UserSerializers(newUser).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    def patch(self, request):
-        # Lấy user sau khi xác thực tokentoken
-        user = request.user
-        # Chuẩn bị dữ liệu để truyền vào serializer
-        # Cap nhat nguoi tao created_by and updated_by
-        data = deepcopy(request.data)
-        data["updatedBy"] = {
-            "id": user.id,
-            "email": user.email
-        }
-
-        # Lay nguoi dung can update
-        user_id_update = request.data.get("id")
-        user_update = self.get_object(user_id_update)
-        
-        """ 
-        Cập nhật thông tin UserUser
-        Khi gọi UserSerializers(user_update, data=request.data, partial=True) 
-        -> Có instance và partial=True sẽ gọi hàm update() phương thức PATCH trong serializer.pypy
-        """
-        serializer = UserSerializers(user_update, data=data, partial=True)  # partial=True cho phép PATCH
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class UserDetail(APIView):
     def get_permissions(self):
-        if self.request.method == 'DELETE':
+        if self.request.method == 'DELETE' or self.request.method == 'PATCH':
             return [IsAuthenticated()]  # POST yêu cầu xác thực
         return [AllowAny()]  # GET không yêu cầu xác thực
     
@@ -143,6 +124,37 @@ class UserDetail(APIView):
         reponse["statusCode"] = status.HTTP_200_OK
         del reponse["code"]
         return Response(reponse, status = status.HTTP_200_OK)
+    
+    def patch(self, request, pk):
+        # Lấy user sau khi xác thực tokentoken
+        user = request.user
+
+        # Check permission of user
+        # check_result = check_permission(user.email, pathUser, "PATCH")
+        # if check_result["code"] == 1:
+        #     raise PermissionDenied(detail=check_result["message"])
+
+        # Cap nhat nguoi tao created_by and updated_by
+        data = deepcopy(request.data)
+        data["updatedBy"] = {
+            "id": user.id,
+            "email": user.email
+        }
+
+        # Lay nguoi dung can update
+        user_update = self.get_object(pk)
+        
+        """ 
+        Cập nhật thông tin UserUser
+        Khi gọi UserSerializers(user_update, data=request.data, partial=True) 
+        -> Có instance và partial=True sẽ gọi hàm update() phương thức PATCH trong serializer.pypy
+        """
+        serializer = UserSerializers(user_update, data=data, partial=True)  # partial=True cho phép PATCH
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
         """ Lay user da xac thuc """
