@@ -5,8 +5,12 @@ from rest_framework import serializers
 import re
 from django.contrib.auth.hashers import make_password
 from utils.Convert import to_snake_case
+from utils.CheckUtils import check_permission
+from rest_framework import status
 
-pathUser = "/api/users"
+module = "USER"
+path_not_id = "/api/v1/users"
+path_by_id = "/api/v1/users/<int:pk>"
 
 class UserSerializers(serializers.ModelSerializer):
     password = serializers.CharField(write_only = True) # Only get password and not return
@@ -49,12 +53,15 @@ class UserSerializers(serializers.ModelSerializer):
         """
         if not role:
             try:
-                role = Role.objects.get(name="Customer")
+                role = Role.objects.get(name="User")
                 return role.id  # Trả về ID nếu tìm thấy đối tượng
             except Role.DoesNotExist:
                 return role
         if not Role.objects.filter(id=role.id).exists():
             raise serializers.ValidationError("Role không tồn tại.")
+        check_supder_admin_role = Role.objects.get(id=role.id)
+        if check_supder_admin_role.name == "Super Admin":
+            raise serializers.ValidationError("Đây là role Super Admin không thể thao tác!")
         return role.id  # ✅ Phải trả về giá trị đã kiểm tra (là ID)
     
     def validate_company(self, company):
@@ -70,15 +77,17 @@ class UserSerializers(serializers.ModelSerializer):
 
 
     def create(self, validated_data):
-        """
-        Mô tả cách hoạt động:
-        B1: Convert tên biến thành kiểu snake_case để lưu vào db
-        B2: Chuyển đổi tên thuộc tính nhận vào là role thành role_id để lưu vào db
-        B4: Tạo mới user
-        """
-
+        print("Bat dau create user serializer")
         # Convert snake_case
         validated_data = to_snake_case(validated_data)
+
+        # Check permissions
+        check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
+        if check_result["code"] == 1:
+            check_result.update({
+                    "statusCode": status.HTTP_403_FORBIDDEN,
+                })
+            return check_result
         
         # Convert 'role' to 'role_id'
         validated_data["role_id"] = validated_data.pop("role", None)
@@ -86,19 +95,50 @@ class UserSerializers(serializers.ModelSerializer):
 
         # Tạo user mới
         validated_data["password"] = make_password(validated_data["password"])  # Hash mật khẩu
-        return super().create(validated_data)  # Gọi create() của ModelSerializer
+
+        new_user = super().create(validated_data)
+        return {
+                "code": 0,
+                "statusCode": status.HTTP_201_CREATED,
+                "message": "Role create successful!",
+                "data": self.__class__(new_user).data
+            }
     
     def update(self, instance, validated_data):
-        """
-        Mô tả cách hoạt động:
-        B1: Convert tên biến thành kiểu snake_case để lưu vào db
-        B2: Kiểm tra method -> partial = True -> PATCH | False -> PUT
-        B3: Chuyển đổi tên thuộc tính nhận vào là role thành role_id để lưu vào db
-        B4: Kiểm tra nếu có trường password thì cập nhật lại
-        B5: Cập nhật các trường khác từ validated_data vào instance để lưu vào db
-        """
         # Convert snake_case
         validated_data = to_snake_case(validated_data)
+
+        # self.parital = True -> PATCH and self.partial = FALSE -> PUT
+        if self.partial:
+            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PATCH", module)
+            if check_result["code"] == 1:
+                check_result.update({
+                    "statusCode": status.HTTP_403_FORBIDDEN,
+                })
+                return check_result
+        else:
+            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PUT", module)
+            if check_result["code"] == 1:
+                check_result.update({
+                    "statusCode": status.HTTP_403_FORBIDDEN,
+                })
+                return check_result
+            
+        # Check đối tượng cần update có tồn tại
+        if not instance:
+            return {
+                "code": 2,
+                "statusCode": status.HTTP_404_NOT_FOUND,
+                "message": "User not found!"
+            }
+        
+        # Check đối tượng cần update có phải role Super Admin
+        if instance.email == "superadmin@gmail.com" or instance.is_superuser == True:
+            return {
+                "code": 1,
+                "statusCode": status.HTTP_403_FORBIDDEN,
+                "message": "Không được thay đổi Super Admin!"
+            }
             
         # Convert 'role' to 'role_id'
         instance.role_id = validated_data.pop("role", None)
@@ -112,5 +152,10 @@ class UserSerializers(serializers.ModelSerializer):
             setattr(instance, attr, value)
         
         instance.save()  # Lưu lại đối tượng đã được cập nhật
-        return instance
+        return {
+            "code": 0,
+            "statusCode": status.HTTP_200_OK,
+            "message": "User update successful!",
+            "data": self.__class__(instance).data
+        }
         

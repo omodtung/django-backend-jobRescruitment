@@ -62,6 +62,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'backend.apps.backendConfig',  # Đảm bảo cấu hình đúng AppConfig của ứng dụng
+
     "authentication",
     "users",
     "jobs",

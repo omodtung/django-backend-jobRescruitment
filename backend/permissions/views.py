@@ -9,7 +9,9 @@ from copy import deepcopy
 from django.core.paginator import Paginator
 from .service import find_all, remove, find_one
 
-
+module = "PERMISSION"
+path_not_id = "/api/v1/permissions"
+path_by_id = "/api/v1/permissions/<int:pk>"
 # Create your views here.
 class PermissionList(APIView):
     def get_permissions(self):
@@ -56,6 +58,12 @@ class PermissionList(APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
         # Lấy user sau khi xác thực tokentoken
         user = request.user
 
@@ -72,9 +80,15 @@ class PermissionList(APIView):
 
         serializer = PermissionSerializers(data=data)
         if serializer.is_valid():
-            new = serializer.save()
-            return Response(PermissionSerializers(new).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            result = serializer.save()
+            if result["code"] == 1:
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+            return Response(result, status=status.HTTP_201_CREATED)
+        return Response({
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
+    
 class PermissionDetail(APIView):
     def get_permissions(self):
         if self.request.method == 'DELETE' or self.request.method == 'PATCH':
@@ -102,6 +116,12 @@ class PermissionDetail(APIView):
         return Response(reponse, status = status.HTTP_200_OK)
 
     def patch(self, request, pk):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
         # Lấy user sau khi xác thực tokentoken
         user = request.user
         # Chuẩn bị dữ liệu để truyền vào serializer
@@ -114,27 +134,33 @@ class PermissionDetail(APIView):
         # Lay nguoi dung can update
         permission_update = self.get_object(pk)
         
-        """ 
-        Cập nhật thông tin UserUser
-        Khi gọi UserSerializers(user_update, data=request.data, partial=True) 
-        -> Có instance và partial=True sẽ gọi hàm update() phương thức PATCH trong serializer.pypy
-        """
         serializer = PermissionSerializers(permission_update, data=data, partial=True)  # partial=True cho phép PATCH
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            result = serializer.save()
+            if result["code"] == 1:
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+            if result["code"] == 2:
+                return Response(result, status=status.HTTP_404_NOT_FOUND)
+            return Response(result, status=status.HTTP_200_OK)
+        return Response({
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
         """ Lay user da xac thuc """
         user = request.user
         """ Xóa user """
-        response = remove(pk, user)
-        if response.get("code") == 1:
-            response["statusCode"] = status.HTTP_404_NOT_FOUND
-            del response["code"]
+        response = remove(pk, user, path_by_id, "DELETE", module)
+        if response["code"] == 1:
+            return Response(response, status=status.HTTP_403_FORBIDDEN)
+        if response["code"] == 2:
             return Response(response, status=status.HTTP_404_NOT_FOUND)
-        response["statusCode"] = status.HTTP_204_NO_CONTENT
-        del response["code"]
         return Response(response, status=status.HTTP_204_NO_CONTENT)
     

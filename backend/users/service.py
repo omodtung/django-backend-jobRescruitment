@@ -1,7 +1,8 @@
 from django.db.models import Q
 from .models import User
 from utils.CheckUtils import check_permission
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import status
+
 
 pathUser = "/api/users"
 
@@ -41,19 +42,30 @@ def find_one(id: str):
         }
     }
 
-def remove(id: str, user):
+def remove(id, user, path, method, module):
     """ Check quyền truy cập của user """
-    check_result = check_permission(user.email, pathUser, "POST")
+    check_result = check_permission(user.email, path, method, module)
     if check_result["code"] == 1:
-        raise PermissionDenied(detail=check_result["message"])
-
+        check_result.update({
+            "statusCode": status.HTTP_403_FORBIDDEN,
+        })
+        return check_result
+    
     if not User.objects.filter(id=id, is_deleted=False).exists():
-        return {"code": 1, "message": "User not found or deleted!"}
-    foundUser = User.objects.get(id=id)
-    if foundUser.email == "admin@gmail.com":
-        return {"code": 1, "message": "You cannot delete this user"}
+        return {
+            "code": 2,
+            "statusCode": status.HTTP_404_NOT_FOUND,
+            "message": "User not found or deleted!"
+        }
     
     userIsDeleted = User.objects.get(id=id)
+    if userIsDeleted.email == "superadmin@gmail.com" or userIsDeleted.is_superuser == True:
+        return {
+            "code": 1, 
+            "statusCode": status.HTTP_403_FORBIDDEN,
+            "message": "You cannot delete Super Admin"
+        }
+    
     deleted_by = {
         "id": user.id,
         "email": user.email
@@ -62,6 +74,7 @@ def remove(id: str, user):
     userIsDeleted.save()
     return {
         "code": 0,
+        "statusCode": status.HTTP_204_NO_CONTENT,
         "message": "Delete user successfully",
         "data": {
             "id": userIsDeleted.id,

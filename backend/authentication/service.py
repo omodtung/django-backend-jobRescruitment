@@ -18,7 +18,7 @@ def get_user_from_refresh_token(refresh_token):
     try:
         token = RefreshToken(refresh_token)
         user_id = token.payload.get("user_id")
-        User = get_user_model()
+        # User = get_user_model()
         user = User.objects.get(id=user_id)
         return user
     except:

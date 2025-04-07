@@ -1,9 +1,12 @@
 from django.db.models import Q
 from .models import Permissions
 from utils.CheckUtils import check_permission
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import status
+from .serializers import PermissionSerializers
 
-pathPermission = "/api/permissions"
+module = "PERMISSION"
+path_not_id = "/api/v1/permissions"
+path_by_id = "/api/v1/permissions/<int:pk>"
 
 def find_all(qs: str):
     sort = qs.pop("sort", None)  # Sắp xếp
@@ -25,25 +28,29 @@ def find_one(id):
         return {"code": 1, "message": "Permission not found or deleted!"}
 
     permission = Permissions.objects.get(id=id)
+    serialized = PermissionSerializers(permission)
 
     return {
         "code": 0,
         "message": "Fetch List Permission with paginate----",
-        "data": permission
+        "data": serialized.data
     }
 
-def remove(id, user):
+def remove(id, user, path, method, module):
     """ Check quyền truy cập của user """
-    # check_result = check_permission(user.email, pathPermission, "POST")
-    # if check_result["code"] == 1:
-    #     raise PermissionDenied(detail=check_result["message"])
+    check_result = check_permission(user.email, path, method, module)
+    if check_result["code"] == 1:
+        check_result.update({
+            "statusCode": status.HTTP_403_FORBIDDEN,
+        })
+        return check_result
 
     if not Permissions.objects.filter(id=id, is_deleted=False).exists():
-        return {"code": 1, "message": "Permissions not found or deleted!"}
-    found = Permissions.objects.get(id=id)
-    if found.name == "ADMIN":
-        return {"code": 1, "message": "You cannot delete this ADMIN"}
-    
+        return {
+            "code": 2,
+            "statusCode": status.HTTP_404_NOT_FOUND,
+            "message": "Permission not found or deleted!"
+        }
     isDeleted = Permissions.objects.get(id=id)
     deleted_by = {
         "id": user.id,
