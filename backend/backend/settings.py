@@ -118,8 +118,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'jobsOpen',
         'USER': 'postgres',
-        'PASSWORD': 'trung2205',
-            #  'PASSWORD': 'password',
+        # 'PASSWORD': 'trung2205',
+             'PASSWORD': 'password',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -169,3 +169,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+APPEND_SLASH = False
