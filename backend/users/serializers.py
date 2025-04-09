@@ -80,14 +80,14 @@ class UserSerializers(serializers.ModelSerializer):
         print("Bat dau create user serializer")
         # Convert snake_case
         validated_data = to_snake_case(validated_data)
-
+        # todo fix register -> trung 
         # Check permissions
-        check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
-        if check_result["code"] == 1:
-            check_result.update({
-                    "statusCode": status.HTTP_403_FORBIDDEN,
-                })
-            return check_result
+        # check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
+        # if check_result["code"] == 1:
+        #     check_result.update({
+        #             "statusCode": status.HTTP_403_FORBIDDEN,
+        #         })
+        #     return check_result
         
         # Convert 'role' to 'role_id'
         validated_data["role_id"] = validated_data.pop("role", None)
