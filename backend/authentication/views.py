@@ -10,6 +10,7 @@ from .service import save_refresh_token_when_user_login, get_user_from_refresh_t
 from rest_framework.views import APIView
 from users.models import User
 from users.serializers import UserSerializers
+from copy import deepcopy
 
 
 
@@ -87,8 +88,13 @@ class RegistertApiView(APIView):
             return None
         
     def post(self, request):
-        serializer = UserSerializers(data=request.data)
+        data = deepcopy(request.data)
+        data["register"] = True
+        serializer = UserSerializers(data=data)
         if serializer.is_valid():
-            newUser = serializer.save()
-            return Response(UserSerializers(newUser).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            result = serializer.save()
+            return Response(result, status=status.HTTP_201_CREATED)
+        return Response({
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)

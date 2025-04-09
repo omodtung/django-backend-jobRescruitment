@@ -80,11 +80,11 @@ class RoleList(APIView):
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
         data["createdBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
 
@@ -126,7 +126,7 @@ class RoleDetail(APIView):
         # Chuẩn bị dữ liệu để truyền vào serializer
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
 

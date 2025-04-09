@@ -16,5 +16,5 @@ class Companies(models.Model):
     delete_by = models.JSONField(blank=True, null=True)
 
 
-    class Meta:
+    class Meta:  
         db_table = "companies"

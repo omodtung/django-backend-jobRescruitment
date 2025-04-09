@@ -53,7 +53,7 @@ class PermissionList(APIView):
                     "pages": total_pages,
                     "totals": total_items,
                 },
-            "result": serializer.data
+                "result": serializer.data
             }
         }, status=status.HTTP_200_OK)
 
@@ -70,11 +70,11 @@ class PermissionList(APIView):
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
         data["createdBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
 
@@ -127,7 +127,7 @@ class PermissionDetail(APIView):
         # Chuẩn bị dữ liệu để truyền vào serializer
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
 
