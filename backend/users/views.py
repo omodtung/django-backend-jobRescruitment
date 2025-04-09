@@ -10,15 +10,19 @@ from .service import find_all, find_one, remove
 from copy import deepcopy
 from rest_framework.exceptions import PermissionDenied
 from utils.CheckUtils import check_permission
+from roles.serializers import RoleSerializers
+from companies.models import Companies
+from roles.models import Role
 
-
-pathUser = "/api/users"
+module = "USER"
+path_not_id = "/api/v1/users"
+path_by_id = "/api/v1/users/<int:pk>"
 class UserList(APIView):
-    permission_classes = [AllowAny]
-    # def get_permissions(self):
-    #     if self.request.method == 'POST':
-    #         return [IsAuthenticated()]
-    #     return [AllowAny()]
+    # permission_classes = [AllowAny]
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAuthenticated()]
+        return [AllowAny()]
 
     
     # helper function
@@ -54,11 +58,16 @@ class UserList(APIView):
             )
 
         serializer = UserSerializers(users, many=True)
+        data = serializer.data
 
-        # Trả về kết quả giống NestJS
+        for i, user_data in enumerate(data):
+            user = serializer.instance[i]
+            user_data["role"] = RoleSerializers(user.role).data if user.role else None
+
+        # Trả về kết quả đã cập nhật
         return Response({
             "statusCode": status.HTTP_200_OK,
-            "message": 'Fetch List User with paginate----',
+            "message": "Fetch List User with paginate----",
             "data": {
                 "meta": {
                     "current": current_page,
@@ -66,38 +75,57 @@ class UserList(APIView):
                     "pages": total_pages,
                     "totals": total_items,
                 },
-            "result": serializer.data
+                "result": data  # <-- dùng `data` đã cập nhật
             }
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+ 
+
         # Lấy user sau khi xác thực tokentoken
         user = request.user
+        
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
         data["createdBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
-
-        # Check permission of user
-        # check_result = check_permission(user.email, pathUser, "POST")
-        # if check_result["code"] == 1:
-        #     raise PermissionDenied(detail=check_result["message"])
+        data["register"] = False
         
-        """ 
-        Tạo user mới 
-        Khi gọi UserSerializers(data=request.data) -> không có instance mặc định dùng hàm create() trong serializer.pypy
-        """
+        # Kiem tra bien company va role
+        if isinstance(data["company"], dict):
+            company_id = data["company"].get("_id")
+            if not company_id:
+                data["company"] = None
+            else:
+                data["company"] = int(company_id)
+        if isinstance(data["role"], dict):
+            company_id = data["role"].get("_id")
+            if not company_id:
+                data["role"] = None
+            else:
+                data["role"] = int(company_id)
+
         serializer = UserSerializers(data=data)
         if serializer.is_valid():
-            newUser = serializer.save()
-            return Response(UserSerializers(newUser).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            result = serializer.save()
+            if result["code"] == 1:
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+            return Response(result, status=status.HTTP_201_CREATED)
+        return Response({
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
 class UserDetail(APIView):
     def get_permissions(self):
@@ -126,46 +154,82 @@ class UserDetail(APIView):
         return Response(reponse, status = status.HTTP_200_OK)
     
     def patch(self, request, pk):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+ 
         # Lấy user sau khi xác thực tokentoken
         user = request.user
-
-        # Check permission of user
-        # check_result = check_permission(user.email, pathUser, "PATCH")
-        # if check_result["code"] == 1:
-        #     raise PermissionDenied(detail=check_result["message"])
-
-        # Cap nhat nguoi tao created_by and updated_by
+        # Cap nhat updated_by
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
 
-        # Lay nguoi dung can update
+        # Kiem tra bien company va role
+        if "company" in data and isinstance(data["company"], dict):
+            company_id = data["company"].get("_id")
+        if company_id:
+            try:
+                data["company"] = company_id if company_id else None
+            except Companies.DoesNotExist:
+                return Response({
+                        "statusCode": status.HTTP_404_NOT_FOUND,
+                        "message": "Khong tim thay company!"
+                    }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            data["company"] = None
+
+        # Handle role
+        if "role" in data and isinstance(data["role"], dict):
+            role_id = data["role"].get("_id")
+            if role_id:
+                try:
+                    data["role"] = role_id if role_id else None
+                except Role.DoesNotExist:
+                    return Response({
+                        "statusCode": status.HTTP_404_NOT_FOUND,
+                        "message": "Khong tim thay role!"
+                    }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                data["role"] = None
+       
         user_update = self.get_object(pk)
+       
+        # Truyen partical = True -> Use update by PATCH
+        serializer = UserSerializers(user_update, data=data, partial=True)
         
-        """ 
-        Cập nhật thông tin UserUser
-        Khi gọi UserSerializers(user_update, data=request.data, partial=True) 
-        -> Có instance và partial=True sẽ gọi hàm update() phương thức PATCH trong serializer.pypy
-        """
-        serializer = UserSerializers(user_update, data=data, partial=True)  # partial=True cho phép PATCH
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            result = serializer.save()
+            if result["code"] == 1:
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+            if result["code"] == 2:
+                return Response(result, status=status.HTTP_404_NOT_FOUND)
+            return Response(result, status=status.HTTP_200_OK)
+        return Response({
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
-        """ Lay user da xac thuc """
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+ 
+
+        # Lấy user sau khi xác thực tokentoken
         user = request.user
+
         """ Xóa user """
-        response = remove(pk, user)
-        if response.get("code") == 1:
-            response["statusCode"] = status.HTTP_404_NOT_FOUND
-            del response["code"]
+        response = remove(pk, user, path_by_id, "DELETE", module)
+        if response["code"] == 1:
+            return Response(response, status=status.HTTP_403_FORBIDDEN)
+        if response["code"] == 2:
             return Response(response, status=status.HTTP_404_NOT_FOUND)
-        response["statusCode"] = status.HTTP_204_NO_CONTENT
-        del response["code"]
         return Response(response, status=status.HTTP_204_NO_CONTENT)
     

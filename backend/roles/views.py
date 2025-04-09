@@ -10,9 +10,12 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from .service import find_all, remove, find_one
 from django.core.paginator import Paginator
 from copy import deepcopy
+from utils.CheckUtils import check_permission
 
 # Create your views here.
-
+module = "ROLE"
+path_not_id = "/api/v1/roles"
+path_by_id = "/api/v1/roles/<int:pk>"
 class RoleList(APIView):
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -66,25 +69,36 @@ class RoleList(APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+ 
         # Lấy user sau khi xác thực tokentoken
         user = request.user
-
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
         data["createdBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
 
+        print("Bat dau create role")
         serializer = RoleSerializers(data=data)
         if serializer.is_valid():
-            newRole = serializer.save()
-            return Response(RoleSerializers(newRole).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            result = serializer.save()
+            if result["code"] == 1:
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+            return Response(result, status=status.HTTP_201_CREATED)
+        return Response({
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
 class RoleDetail(APIView):
     def get_permissions(self):
@@ -101,28 +115,36 @@ class RoleDetail(APIView):
             return None
         
     def patch(self, request, pk):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
         # Lấy user sau khi xác thực tokentoken
         user = request.user
         # Chuẩn bị dữ liệu để truyền vào serializer
         data = deepcopy(request.data)
         data["updatedBy"] = {
-            "id": user.id,
+            "_id": user.id,
             "email": user.email
         }
 
         # Lay nguoi dung can update
         role_update = self.get_object(pk)
-        
-        """ 
-        Cập nhật thông tin UserUser
-        Khi gọi UserSerializers(user_update, data=request.data, partial=True) 
-        -> Có instance và partial=True sẽ gọi hàm update() phương thức PATCH trong serializer.pypy
-        """
+        # Truyen partical = True -> Use update by PATCH
         serializer = RoleSerializers(role_update, data=data, partial=True)  # partial=True cho phép PATCH
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            result = serializer.save()
+            if result["code"] == 1:
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+            if result["code"] == 2:
+                return Response(result, status=status.HTTP_404_NOT_FOUND)
+            return Response(result, status=status.HTTP_200_OK)
+        return Response({
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
        
     # Endpoint GET    
     def get(self, request, pk):
@@ -135,28 +157,22 @@ class RoleDetail(APIView):
         reponse["statusCode"] = status.HTTP_200_OK
         del reponse["code"]
         return Response(reponse, status = status.HTTP_200_OK)
-
-    # def put(self, request, pk):
-    #     """ Cập nhật thông tin Role """
-    #     role = self.get_object(pk)
-    #     if role is None:
-    #         return Response({"error": "Role not found"}, status=status.HTTP_404_NOT_FOUND)
-    #     serializer = RoleSerializers(role, data=request.data)
-    #     if serializer.is_valid():
-    #         serializer.save()
-    #         return Response(serializer.data)
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
+        if not request.user:
+            return Response({
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "massage": "User chưa xác thực!"
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
         """ Lay user da xac thuc """
         user = request.user
-        """ Xóa user """
-        response = remove(pk, user)
-        if response.get("code") == 1:
-            response["statusCode"] = status.HTTP_404_NOT_FOUND
-            del response["code"]
+
+        """ Xóa role """
+        response = remove(pk, user, path_by_id, "DELETE", module)
+        if response["code"] == 1:
+            return Response(response, status=status.HTTP_403_FORBIDDEN)
+        if response["code"] == 2:
             return Response(response, status=status.HTTP_404_NOT_FOUND)
-        response["statusCode"] = status.HTTP_204_NO_CONTENT
-        del response["code"]
         return Response(response, status=status.HTTP_204_NO_CONTENT)
     

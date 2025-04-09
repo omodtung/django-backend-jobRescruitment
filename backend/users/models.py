@@ -1,10 +1,8 @@
-from datetime import timezone
+from datetime import datetime, timezone
 from django.db import models
-from django.utils.timezone import now
 from companies.models import Companies
 from roles.models import Role
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.utils.timezone import now
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -76,8 +74,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def soft_delete(self, deleted_by=None):
     
+        now = datetime.now(timezone.utc)  # lấy thời gian UTC hiện tại
         self.is_deleted = True
-        self.deleted_at = timezone.now()
+        self.deleted_at = now
         if deleted_by:
             self.deleted_by = deleted_by
         self.save()

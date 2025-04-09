@@ -2,8 +2,11 @@ from permissions.models import Permissions
 from rest_framework import serializers
 from utils.Convert import to_snake_case
 from utils.CheckUtils import check_permission
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import status
 
+module = "PERMISSION"
+path_not_id = "/api/v1/permissions"
+path_by_id = "/api/v1/permissions/<int:pk>"
 class PermissionSerializers(serializers.ModelSerializer):
     _id = serializers.JSONField(source='id', required=False, read_only=True)
     apiPath = serializers.CharField(source='api_path', required=True)
@@ -37,40 +40,59 @@ class PermissionSerializers(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data = to_snake_case(validated_data)
         # Check permissions
-        # check_result = check_permission(validated_data["created_by"].get("email"), pathUser, "POST")
-        # if check_result["code"] == 1:
-        #     raise PermissionDenied(detail=check_result["message"])
+        check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
+        if check_result["code"] == 1:
+            check_result.update({
+                    "statusCode": status.HTTP_403_FORBIDDEN,
+                })
+            return check_result
         
-        return super().create(validated_data)  # Gọi create() của ModelSerializer
+        new_permission = super().create(validated_data)
+        return {
+                "code": 0,
+                "statusCode": status.HTTP_201_CREATED,
+                "message": "Permission create successful!",
+                "data": self.__class__(new_permission).data
+            }
     
     def update(self, instance, validated_data):
-        """
-        Mô tả cách hoạt động:
-        B1: Convert tên biến thành kiểu snake_case để lưu vào db
-        B2: Kiểm tra method -> partial = True -> PATCH | False -> PUT
-        B3: Check quyền truy cập người thực hiện tác vụ
-        B4: Cập nhật các trường khác từ validated_data vào instance để lưu vào db
-        """
         # Convert snake_case
         validated_data = to_snake_case(validated_data)
 
         # self.parital = True -> PATCH and self.partial = FALSE -> PUT
-        # if self.partial:
-        #     check_result = check_permission(validated_data["updated_by"].get("email"), pathUser, "PATCH")
-        #     if check_result["code"] == 1:
-        #         raise PermissionDenied(detail=check_result["message"])
-        # else:
-        #     check_result = check_permission(validated_data["updated_by"].get("email"), pathUser, "PUT")
-        #     if check_result["code"] == 1:
-        #         raise PermissionDenied(detail=check_result["message"])
+        if self.partial:
+            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PATCH", module)
+            if check_result["code"] == 1:
+                check_result.update({
+                    "statusCode": status.HTTP_403_FORBIDDEN,
+                })
+                return check_result
+        else:
+            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PUT", module)
+            if check_result["code"] == 1:
+                check_result.update({
+                    "statusCode": status.HTTP_403_FORBIDDEN,
+                })
+                return check_result
 
-        # Cập nhật các trường khác
+        # Check đối tượng cần update có tồn tại
+        if not instance:
+            return {
+                "code": 2,
+                "statusCode": status.HTTP_404_NOT_FOUND,
+                "message": "Permission not found!"
+            }
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         instance.save()
-        return instance
+        return {
+            "code": 0,
+            "statusCode": status.HTTP_200_OK,
+            "message": "Role update successful!",
+            "data": self.__class__(instance).data
+        }
 
     
 
