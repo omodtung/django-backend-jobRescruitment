@@ -18,6 +18,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 class CustomTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
+        
+        request.data["email"] = request.data.get("username")
         response = super().post(request, *args, **kwargs)
         
         if response.status_code == 200:

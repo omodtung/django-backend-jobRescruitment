@@ -14,10 +14,12 @@ from copy import deepcopy
 # Create your views here.
 
 class RoleList(APIView):
-    def get_permissions(self):
-        if self.request.method == 'POST':
-            return [IsAuthenticated()]
-        return [AllowAny()]
+    permission_classes = [AllowAny]
+
+    # def get_permissions(self):
+    #     if self.request.method == 'POST':
+    #         return [IsAuthenticated()]
+    #     return [AllowAny()]
     
     # helper function
     def get_object(self, pk):
@@ -67,18 +69,18 @@ class RoleList(APIView):
 
     def post(self, request):
         # Lấy user sau khi xác thực tokentoken
-        user = request.user
+        # user = request.user
 
         # Cap nhat nguoi tao created_by and updated_by
         data = deepcopy(request.data)
-        data["updatedBy"] = {
-            "id": user.id,
-            "email": user.email
-        }
-        data["createdBy"] = {
-            "id": user.id,
-            "email": user.email
-        }
+        # data["updatedBy"] = {
+        #     "id": user.id,
+        #     "email": user.email
+        # }
+        # data["createdBy"] = {
+        #     "id": user.id,
+        #     "email": user.email
+        # }
 
         serializer = RoleSerializers(data=data)
         if serializer.is_valid():
