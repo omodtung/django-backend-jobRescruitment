@@ -4,9 +4,16 @@ from utils.CheckUtils import check_permission
 from rest_framework import status
 from .serializers import JobSerializers
 from companies.serializers import CompaniesSerializer
+from utils.Convert import to_snake_case
 
 def find_all(qs: str):
     sort = qs.pop("sort", None)  # Sắp xếp
+    print("sort", sort)
+    if sort:
+        sort = to_snake_case(sort)
+    else:
+        sort = "updated_at"
+
     population = qs.pop("population", None)  # Nạp dữ liệu quan hệ
 
     # Lọc dữ liệu

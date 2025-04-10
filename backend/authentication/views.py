@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from users.models import User
 from users.serializers import UserSerializers
 from copy import deepcopy
+from permissions.serializers import PermissionSerializers
 
 
 
@@ -49,14 +50,16 @@ class AccountApiView(APIView):
             return User.objects.get(id = pk)
         except User.DoesNotExist:
             return None
-        
-    def post(self, request):
+    # def post(self, request):  
+    def get(self, request):
         user = request.user
         if not user:
             return Response("User not found!", status=status.HTTP_404_NOT_FOUND)
         role = user.role
         permissions = role.permissions.all()
-        permission_ids = [permission.id for permission in permissions]
+        print("Permission: ", permissions)
+        # print("PermissionSerializers(permissions, many=True).data", PermissionSerializers(permissions, many=True).data)
+        permission_ids = [permission["_id"] for permission in PermissionSerializers(permissions, many=True).data]
         
         return Response({
             "statusCode": 200,
@@ -71,8 +74,10 @@ class AccountApiView(APIView):
                         "name": role.name,
                         "permissions": permission_ids,
                     },
-                    "permissions": permissions
+                    "permissions": PermissionSerializers(permissions, many=True).data
                 }
+
+              
             }
         }, status=status.HTTP_200_OK)
     

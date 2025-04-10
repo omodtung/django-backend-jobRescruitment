@@ -89,7 +89,7 @@ class CompanyDetail(APIView):
     def get_object(self, pk):
         """ Lấy công ty bằng ID """
         try:
-            return Companies.objects.get(pk=pk)
+            return Companies.objects.get(id=pk)
         except Companies.DoesNotExist:
             return None
     
@@ -109,13 +109,30 @@ class CompanyDetail(APIView):
         serializer = CompaniesSerializer(company, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response({
+                "statusCode": 200,
+                "message": "",
+                "data": {
+                    "acknowledged": True,
+                    "modifiedCount": 1,
+                    "upsertedId": None,
+                    "upsertedCount": 0,
+                    "matchedCount": 1
+                }
+            })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def delete(self, request, pk):
         """ Xóa công ty """
         company = self.get_object(pk)
         if company is None:
             return Response({"error": "Company not found"}, status=status.HTTP_404_NOT_FOUND)
         company.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+
+        return Response({
+           "statusCode": 200,
+           "message": "",
+           "data": {
+               "deleted": 1
+           }
+       })
