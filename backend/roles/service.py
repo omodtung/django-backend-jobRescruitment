@@ -1,8 +1,8 @@
 from django.db.models import Q
 from .models import Role
 from utils.CheckUtils import check_permission
-from rest_framework.exceptions import PermissionDenied
 from rest_framework import status
+from .serializers import RoleSerializers
 
 def find_all(qs: str):
     sort = qs.pop("sort", None)  # Sắp xếp
@@ -21,20 +21,15 @@ def find_all(qs: str):
 
 def find_one(id):
     if not Role.objects.filter(id=id, is_deleted=False).exists():
-        return {"code": 1, "message": "User not found or deleted!"}
+        return {"code": 1, "message": "Role not found or deleted!"}
 
     role = Role.objects.get(id=id)
-    permissions = [permission.id for permission in role.permissions.all()]
+    # permissions = [permission.id for permission in role.permissions.all()]
 
     return {
         "code": 0,
         "message": "Fetch List User with paginate----",
-        "data": {
-            "id": role.id,
-            "name": role.name,
-            "description": role.description,
-            "permissions": permissions
-        }
+        "data": RoleSerializers(role).data
     }
 
 def remove(id, user, path, method, module):
@@ -61,7 +56,7 @@ def remove(id, user, path, method, module):
         }
     
     deleted_by = {
-        "id": user.id,
+        "_id": user.id,
         "email": user.email
     }
     isDeleted.soft_delete(deleted_by)
@@ -70,9 +65,5 @@ def remove(id, user, path, method, module):
         "code": 0,
         "statusCode": status.HTTP_204_NO_CONTENT,
         "message": "Delete user successfully",
-        "data": {
-            "id": isDeleted.id,
-            "name": isDeleted.name,
-            "description": isDeleted.description
-        }
+        "data": RoleSerializers(isDeleted).data
     }

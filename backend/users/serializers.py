@@ -16,6 +16,7 @@ class UserSerializers(serializers.ModelSerializer):
     password = serializers.CharField(write_only = True) # Only get password and not return
     # Setup ten key truoc khi tra ve client
     _id = serializers.JSONField(source="id", required=False, read_only=False)
+    name = serializers.CharField(required=False, allow_blank=True)
     createdBy = serializers.JSONField(source="created_by", required=False, read_only=False)
     updatedBy = serializers.JSONField(source="updated_by", required=False, read_only=False)
     refreshToken = serializers.CharField(source="refresh_token", required=False, read_only=False)
@@ -24,12 +25,16 @@ class UserSerializers(serializers.ModelSerializer):
     deletedBy = serializers.JSONField(source="deleted_by", required=False, read_only=False)
     deletedAt = serializers.DateTimeField(source="deleted_at", required=False, read_only=True)
     isDeleted = serializers.BooleanField(source="is_deleted", required=False, read_only=False)
+
+    # Biến để xác thực coi user đăng ký hay admin tạo user
+    register = serializers.BooleanField(required=False, default=False, write_only=True)
+
     class Meta:
         model = User  
         fields = [
             "_id", "name", "email", "password", "age", "gender", "address",
             "company", "role", "refreshToken", "createdBy", "updatedBy", 
-            "createdAt", "updatedAt", "deletedBy", "deletedAt", "isDeleted"
+            "createdAt", "updatedAt", "deletedBy", "deletedAt", "isDeleted", "register"
         ]
 
     def validate_email(self, value):
@@ -54,7 +59,7 @@ class UserSerializers(serializers.ModelSerializer):
         if not role:
             try:
                 role = Role.objects.get(name="User")
-                return role.id  # Trả về ID nếu tìm thấy đối tượng
+                return role
             except Role.DoesNotExist:
                 return role
         if not Role.objects.filter(id=role.id).exists():
@@ -62,7 +67,7 @@ class UserSerializers(serializers.ModelSerializer):
         check_supder_admin_role = Role.objects.get(id=role.id)
         if check_supder_admin_role.name == "Super Admin":
             raise serializers.ValidationError("Đây là role Super Admin không thể thao tác!")
-        return role.id  # ✅ Phải trả về giá trị đã kiểm tra (là ID)
+        return role
     
     def validate_company(self, company):
         """ 
@@ -73,25 +78,28 @@ class UserSerializers(serializers.ModelSerializer):
             return company
         if not Companies.objects.filter(id=company.id).exists():
             raise serializers.ValidationError("Company không tồn tại.")
-        return company.id  # ✅ Phải trả về giá trị đã kiểm tra (là ID)
+        return company
 
 
     def create(self, validated_data):
         print("Bat dau create user serializer")
         # Convert snake_case
         validated_data = to_snake_case(validated_data)
-        # todo fix register -> trung 
+        print("validated_data: ", validated_data)
         # Check permissions
-        # check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
-        # if check_result["code"] == 1:
-        #     check_result.update({
-        #             "statusCode": status.HTTP_403_FORBIDDEN,
-        #         })
-        #     return check_result
-        
+        if validated_data["register"] == False:
+            check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
+            if check_result["code"] == 1:
+                check_result.update({
+                        "statusCode": status.HTTP_403_FORBIDDEN,
+                    })
+                return check_result
+    
+        # Loại bỏ register trước khi tạo dữ liệu
+        validated_data.pop("register", False)
         # Convert 'role' to 'role_id'
-        validated_data["role_id"] = validated_data.pop("role", None)
-        validated_data["company_id"] = validated_data.pop("company", None)
+        # validated_data["role_id"] = validated_data.pop("role", None)
+        # validated_data["company_id"] = validated_data.pop("company", None)
 
         # Tạo user mới
         validated_data["password"] = make_password(validated_data["password"])  # Hash mật khẩu

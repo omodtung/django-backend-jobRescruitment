@@ -2,6 +2,7 @@ from django.db.models import Q
 from .models import User
 from utils.CheckUtils import check_permission
 from rest_framework import status
+from .serializers import UserSerializers
 
 
 pathUser = "/api/users"
@@ -26,20 +27,16 @@ def find_one(id: str):
         return {"code": 1, "message": "User not found or deleted!"}
 
     user = User.objects.select_related('role').get(id=id)
-
+    data = UserSerializers(user).data
+    data["role"] = {
+        "id": user.role.id if user.role else None,
+        "name": user.role.name if user.role else None,
+        "description": user.role.description if user.role else None
+    }
     return {
         "code": 0,
         "message": "Fetch List User with paginate----",
-        "data": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": {
-                "id": user.role.id if user.role else None,
-                "name": user.role.name if user.role else None,
-                "description": user.role.description if user.role else None
-            }
-        }
+        "data": data
     }
 
 def remove(id, user, path, method, module):
@@ -67,7 +64,7 @@ def remove(id, user, path, method, module):
         }
     
     deleted_by = {
-        "id": user.id,
+        "_id": user.id,
         "email": user.email
     }
     userIsDeleted.soft_delete(deleted_by)

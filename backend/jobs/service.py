@@ -1,12 +1,9 @@
 from django.db.models import Q
-from .models import Permissions
+from .models import Job
 from utils.CheckUtils import check_permission
 from rest_framework import status
-from .serializers import PermissionSerializers
-
-module = "PERMISSION"
-path_not_id = "/api/v1/permissions"
-path_by_id = "/api/v1/permissions/<int:pk>"
+from .serializers import JobSerializers
+from companies.serializers import CompaniesSerializer
 
 def find_all(qs: str):
     sort = qs.pop("sort", None)  # Sắp xếp
@@ -21,19 +18,20 @@ def find_all(qs: str):
             filters &= Q(**{key: value})
 
     # Truy vấn dữ liệu + Population
-    return Permissions.objects.filter(filters).select_related(population).order_by(sort)
+    return Job.objects.filter(filters).select_related(population).order_by(sort)
 
 def find_one(id):
-    if not Permissions.objects.filter(id=id, is_deleted=False).exists():
-        return {"code": 1, "message": "Permission not found or deleted!"}
+    if not Job.objects.filter(id=id, is_deleted=False).exists():
+        return {"code": 1, "message": "Job not found or deleted!"}
 
-    permission = Permissions.objects.get(id=id)
-    serialized = PermissionSerializers(permission)
+    job = Job.objects.get(id=id)
+    data = JobSerializers(job).data
+    data["company"] = CompaniesSerializer(job.company).data
 
     return {
         "code": 0,
-        "message": "Fetch List Permission with paginate----",
-        "data": serialized.data
+        "message": "Fetch List User with paginate----",
+        "data": data
     }
 
 def remove(id, user, path, method, module):
@@ -45,13 +43,20 @@ def remove(id, user, path, method, module):
         })
         return check_result
 
-    if not Permissions.objects.filter(id=id, is_deleted=False).exists():
+    if not Job.objects.filter(id=id, is_deleted=False).exists():
         return {
             "code": 2,
             "statusCode": status.HTTP_404_NOT_FOUND,
-            "message": "Permission not found or deleted!"
+            "message": "Job not found or deleted!"
         }
-    isDeleted = Permissions.objects.get(id=id)
+    isDeleted = Job.objects.get(id=id)
+    if isDeleted.name == "Super Admin":
+        return {
+            "code": 1, 
+            "statusCode": status.HTTP_403_FORBIDDEN,
+            "message": "You cannot delete this Super Admin"
+        }
+    
     deleted_by = {
         "_id": user.id,
         "email": user.email
@@ -60,6 +65,7 @@ def remove(id, user, path, method, module):
     isDeleted.save()
     return {
         "code": 0,
-        "message": "Delete permission successfully",
-        "data": PermissionSerializers(isDeleted).data
+        "statusCode": status.HTTP_204_NO_CONTENT,
+        "message": "Delete user successfully",
+        "data": JobSerializers(isDeleted).data
     }
