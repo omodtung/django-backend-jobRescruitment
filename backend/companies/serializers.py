@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import Companies
 
+
+pathCompany = "/api/companies/"
 class CompaniesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Companies
@@ -26,3 +28,8 @@ class CompaniesSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("`deleted_at` must be set when soft-deleting a company.")
         return data
 
+    def to_representation(self, instance):
+        """Customize the serialized output to replace `id` with `_id`."""
+        representation = super().to_representation(instance)
+        representation['_id'] = representation.pop('id')  # Replace `id` with `_id`
+        return representation

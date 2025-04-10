@@ -33,21 +33,22 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 REST_FRAMEWORK = {
 
-    # 'DEFAULT_AUTHENTICATION_CLASSES': [
-    #     'rest_framework_simplejwt.authentication.JWTAuthentication',
-    # ],
-    # 'DEFAULT_PERMISSION_CLASSES': [
-    #     'rest_framework.permissions.IsAuthenticated',
-    # ],      
-    # 
-       'DEFAULT_AUTHENTICATION_CLASSES': [],  # Không sử dụng authentication
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Cho phép tất cả mọi người truy cập API mà không cần xác thực
-    ],              
+        'rest_framework.permissions.IsAuthenticated',
+    ],      
 }
+
+AUTH_USER_MODEL = 'users.User'
+
 SIMPLE_JWT = {
-'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-"REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),  # Token có hiệu lực trong 1 ngày
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7), # Refresh token có hiệu lực trong 7 ngày
+    "ROTATE_REFRESH_TOKENS": True, # Cấp lại refresh token mới khi refresh
+    # "BLACKLIST_AFTER_ROTATION": True, # Vô hiệu hóa refresh token cũ sau khi cấp mới
+    "AUTH_HEADER_TYPES": ("Bearer",), # Token sẽ nằm trong Header Authorization: Bearer <token>
 }
 
 
@@ -60,17 +61,20 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    "companies",
+
+    'backend.apps.backendConfig',  # Đảm bảo cấu hình đúng AppConfig của ứng dụng
+
+    "authentication",
     "users",
     "jobs",
     "roles",
     "permissions",
     "resumes" ,
     "file" ,
-
+    "companies",
     "rest_framework_simplejwt",
-
     "rest_framework",
+    'rest_framework_simplejwt.token_blacklist',  # Để hỗ trợ logout
     "corsheaders"
 ]
 
@@ -114,7 +118,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'jobsOpen',
         'USER': 'postgres',
-        'PASSWORD': 'password',
+        # 'PASSWORD': 'trung2205',
+             'PASSWORD': 'password',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -164,3 +169,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+APPEND_SLASH = False

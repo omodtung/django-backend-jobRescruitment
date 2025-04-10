@@ -1,11 +1,10 @@
 
-
-
+from django.utils import timezone
 from django.db import models
-from permissions.models    import Permissions
+from permissions.models   import Permissions
 
 class Role(models.Model):
-
+    id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)  # Added unique constraint
     description = models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
@@ -18,8 +17,14 @@ class Role(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     # Using callable defaults for JSONFields to avoid mutable default issues
-    created_by = models.JSONField(default=dict, blank=True)
-    updated_by = models.JSONField(default=dict, blank=True)
+    created_by = models.JSONField(
+        blank=True, null=True,
+        help_text="Object containing creator details, e.g., {'_id': ObjectID, 'email': string}"
+    )
+    updated_by = models.JSONField(
+        blank=True, null=True,
+        help_text="Object containing updater details, e.g., {'_id': ObjectID, 'email': string}"
+    )
     deleted_by = models.JSONField(default=dict, blank=True)  # Corrected field name
     
     # Soft delete fields
