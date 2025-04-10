@@ -117,8 +117,9 @@ class RoleSerializers(serializers.ModelSerializer):
 
 
         # Cập nhật các trường khác
-        permission_ids = [permission.id for permission in validated_data.pop("permissions", None)]
-        instance.permissions.set(permission_ids)
+        if "permissions" in validated_data:
+            permission_ids = [permission.id for permission in validated_data.pop("permissions", None)]
+            instance.permissions.set(permission_ids)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

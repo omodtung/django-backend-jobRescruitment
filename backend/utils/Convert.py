@@ -17,4 +17,4 @@ def to_snake_case(data):
     elif isinstance(data, list):
         return [to_snake_case(item) for item in data]
     else:
-        return data
+        return  camel_to_snake(data)

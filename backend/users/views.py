@@ -172,16 +172,16 @@ class UserDetail(APIView):
         # Kiem tra bien company va role
         if "company" in data and isinstance(data["company"], dict):
             company_id = data["company"].get("_id")
-        if company_id:
-            try:
-                data["company"] = company_id if company_id else None
-            except Companies.DoesNotExist:
-                return Response({
-                        "statusCode": status.HTTP_404_NOT_FOUND,
-                        "message": "Khong tim thay company!"
-                    }, status=status.HTTP_404_NOT_FOUND)
-        else:
-            data["company"] = None
+            if company_id:
+                try:
+                    data["company"] = company_id if company_id else None
+                except Companies.DoesNotExist:
+                    return Response({
+                            "statusCode": status.HTTP_404_NOT_FOUND,
+                            "message": "Khong tim thay company!"
+                        }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                data["company"] = None
 
         # Handle role
         if "role" in data and isinstance(data["role"], dict):
