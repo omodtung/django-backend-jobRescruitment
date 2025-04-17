@@ -12,7 +12,9 @@ from users.models import User
 from users.serializers import UserSerializers
 from copy import deepcopy
 from permissions.serializers import PermissionSerializers
-
+from utils.Exception import get_error_message
+from companies.models import Companies
+from roles.models import Role
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -50,7 +52,7 @@ class AccountApiView(APIView):
             return User.objects.get(id = pk)
         except User.DoesNotExist:
             return None
-    # def post(self, request):  
+        
     def get(self, request):
         user = request.user
         if not user:
@@ -58,7 +60,6 @@ class AccountApiView(APIView):
         role = user.role
         permissions = role.permissions.all()
         print("Permission: ", permissions)
-        # print("PermissionSerializers(permissions, many=True).data", PermissionSerializers(permissions, many=True).data)
         permission_ids = [permission["_id"] for permission in PermissionSerializers(permissions, many=True).data]
         
         return Response({
@@ -76,8 +77,6 @@ class AccountApiView(APIView):
                     },
                     "permissions": PermissionSerializers(permissions, many=True).data
                 }
-
-              
             }
         }, status=status.HTTP_200_OK)
     
@@ -94,12 +93,64 @@ class RegistertApiView(APIView):
         
     def post(self, request):
         data = deepcopy(request.data)
-        data["register"] = True
+        # Kiem tra bien company va role
+        if "company" in data and isinstance(data["company"], dict):
+            company_id = data["company"].get("_id")
+            if company_id:
+                try:
+                    data["company"] = company_id if company_id else None
+                except Companies.DoesNotExist:
+                    return Response({
+                            "statusCode": status.HTTP_404_NOT_FOUND,
+                            "message": "Khong tim thay company!"
+                        }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                data["company"] = None
+
+        # Handle role
+        if "role" in data and isinstance(data["role"], dict):
+            role_id = data["role"].get("_id")
+            if role_id:
+                try:
+                    data["role"] = role_id if role_id else None
+                except User.DoesNotExist:
+                    return Response({
+                        "statusCode": status.HTTP_404_NOT_FOUND,
+                        "message": "Khong tim thay role!"
+                    }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                data["role"] = None
+        # data["register"] = True
         serializer = UserSerializers(data=data)
         if serializer.is_valid():
             result = serializer.save()
             return Response(result, status=status.HTTP_201_CREATED)
         return Response({
                         "statusCode": status.HTTP_400_BAD_REQUEST,
-                        "message": serializer.errors
+                        "message": get_error_message(serializer.errors)
                     }, status=status.HTTP_400_BAD_REQUEST)
+    
+class LogOutApiView(APIView):
+    permission_classes = [IsAuthenticated]
+        
+    def post(self, request): 
+        if not request.user:
+            return Response("User not found!", status=status.HTTP_404_NOT_FOUND)
+        
+        user_login = request.user
+        
+        save_refresh_token_when_user_login(user_login.email, "")
+        
+        # Tạo response
+        response = Response({
+            "error": 0,
+            "statusCode": 200,
+            "message": "Log out success!",
+            "statusCode": status.HTTP_200_OK,
+            "data": "Ok!"
+        }, status=status.HTTP_200_OK)
+
+        # Xoá cookie ở client
+        response.delete_cookie('refresh_token')
+
+        return response

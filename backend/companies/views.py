@@ -1,91 +1,117 @@
 from django.shortcuts import render
 from rest_framework import viewsets, permissions
 from django.utils import timezone
-from .services import find_all
+from .services import find_all, find_one
+from copy import deepcopy
 from .models import Companies
 from .serializers import CompaniesSerializer
 from rest_framework.views import APIView    
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from django.core.paginator import Paginator
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from utils.Exception import get_error_message
+from utils.CheckUtils import check_permission_of_user
 # List all companies or create a new company
+
+module = "COMPANIES"
+path_not_id = "/api/v1/companies"
+path_by_id = "/api/v1/companies/:id"
 class CompaniesList(APIView):
-    permission_classes = [AllowAny]  # Không yêu cầu xác thực
-    # def get(self, request):
-    #     """ Lấy danh sách tất cả công ty """
-    #     companies = Companies.objects.all()
-    #     serializer = CompaniesSerializer(companies, many=True)
-    #     return Response(serializer.data)
+    # permission_classes = [AllowAny]  # Không yêu cầu xác thực
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        qs = request.GET.dict() # Lấy toàn bộ chuỗi lọc
-
-        # Lay danh sách tham số đặc biệt
-        current_page = int(qs.pop("current", 1))  # Mặc định trang 1
-        page_size = int(qs.pop("pageSize", 10))  # Mặc định 10 item/trang
-        queryset = find_all(qs)
+        # Check user login by jwt
+        if not request.user:
+            return Response({
+                "code": 1,
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized! Vui lòng đăng nhập!"}, 
+                status=status.HTTP_401_UNAUTHORIZED)
         
-        # Tính toán phân trang
-        paginator = Paginator(queryset, page_size)
-        total_items = paginator.count
-        total_pages = paginator.num_pages
-        try:
-            Companies = paginator.page(current_page)
-        except:
-            return Response(
-                {"error": "Page out of range"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Check permission
+        if check_permission_of_user(request.user.email, module, path_not_id, "GET"):
+                # Lấy QueryDict và chuyển thành dict từ request
+            qs = request.GET.dict()
 
-        serializer = CompaniesSerializer(Companies, many=True)
+            # Truy vấn dữ liệu + Population
+            result = find_all(qs)
 
-        # Trả về kết quả giống NestJS
+            if result["statusCode"] == 404:
+                return Response(result, status=status.HTTP_404_NOT_FOUND)
+
+            serializer = CompaniesSerializer(result["data"], many=True)
+            
+            return Response({
+                "code": 0,
+                "statusCode": result["statusCode"],
+                "message": 'Fetch List Companies with paginate----',
+                "data": {
+                    "meta": {
+                        "current": result["currentPage"],
+                        "pageSize": result["pageSize"],
+                        "pages": result["totalPage"],
+                        "total": result["totalItem"],
+                    },
+                    "result": serializer.data
+                }
+            }, status=status.HTTP_200_OK)
         return Response({
-            "statusCode": status.HTTP_200_OK,
-            "message": 'Fetch List User with paginate----',
-            "data": {
-                "meta": {
-                    "current": current_page,
-                    "pageSize": page_size,
-                    "pages": total_pages,
-                    "totals": total_items,
-                },
-            "result": serializer.data
-            }
-        }, status=status.HTTP_200_OK)
+            "code": 3,
+            "statusCode": status.HTTP_403_FORBIDDEN,
+            "message": "Forbidden! Bạn không có quyền truy cập vào tài nguyên này!"}, 
+            status=status.HTTP_403_FORBIDDEN)
 
     def post(self, request):
-        serializer = CompaniesSerializer(data=request.data)
-        if serializer.is_valid():
-            company = serializer.save()  # Save the company instance
-            response_data = {
-                "statusCode": status.HTTP_201_CREATED,
-                "message": "",
-                "data": {
-                    "name": company.name,
-                    "address": company.address,
-                    "description": company.description,
-                    "logo": company.logo,
-                    "createdBy": company.createdBy,
-                    "isDeleted": company.isDeleted,
-                    "deletedAt": company.deletedAt,
-                    "_id": company.id,  # Assuming `id` is the primary key
-                    "createdAt": company.createdAt,
-                    "updatedAt": company.updatedAt,
-                }
+        # Check user login by jwt
+        if not request.user:
+            return Response({
+                "code": 1,
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized! Vui lòng đăng nhập!"}, 
+                status=status.HTTP_401_UNAUTHORIZED)
+        
+            # Get user login
+        user_login = request.user
+            # Add info createdBy, updatedBy to request.data
+        data = deepcopy(request.data)
+        if not "createdBy" in data:
+            data["createdBy"] = {
+                "_id": user_login.id,
+                "email": user_login.email
             }
-            return Response(response_data, status=status.HTTP_201_CREATED)
+        if not "updatedBy" in data:
+            data["updatedBy"] = {
+                "_id": user_login.id,
+                "email": user_login.email
+            }
+
+        # Check permission
+        if check_permission_of_user(request.user.email, module, path_not_id, "POST"):
+                # Create new
+            serializer = CompaniesSerializer(data=data)
+            if serializer.is_valid():
+                result = serializer.save()
+                return Response(result, status=status.HTTP_201_CREATED)
+            return Response({
+                        "code": 1,
+                        "statusCode": status.HTTP_400_BAD_REQUEST,
+                        "message": get_error_message(serializer.errors)
+                    }, status=status.HTTP_400_BAD_REQUEST)
         return Response({
-            "statusCode": status.HTTP_400_BAD_REQUEST,
-            "message": "Validation failed",
-            "errors": serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+            "code": 3,
+            "statusCode": status.HTTP_403_FORBIDDEN,
+                         "message": "Forbidden! Bạn không có quyền truy cập vào tài nguyên này!"}, 
+                         status=status.HTTP_403_FORBIDDEN)
 
 # Retrieve, update, or delete a company
 class CompanyDetail(APIView):
-    permission_classes = [AllowAny]  # Không yêu cầu xác thực
+    def get_permissions(self):
+        if self.request.method == 'DELETE' or self.request.method == 'PATCH':
+            return [IsAuthenticated()]  # POST yêu cầu xác thực
+        return [AllowAny()]  # GET không yêu cầu xác thực
+    
     def get_object(self, pk):
         """ Lấy công ty bằng ID """
         try:
@@ -94,12 +120,24 @@ class CompanyDetail(APIView):
             return None
     
     def get(self, request, pk):
-        """ Lấy thông tin chi tiết công ty """
-        company = self.get_object(pk)
-        if company is None:
-            return Response({"error": "Company not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = CompaniesSerializer(company)
-        return Response(serializer.data)
+        # Check user login by jwt
+        if not request.user:
+            return Response({
+                "code": 1,
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized! Vui lòng đăng nhập!"}, 
+                status=status.HTTP_401_UNAUTHORIZED)
+            # Check permission
+        if check_permission_of_user(request.user.email, module, path_by_id, "GET"):
+            result = find_one(pk)
+            if result["code"] == 4:
+                return Response(result, status=status.HTTP_404_NOT_FOUND)
+            return Response(result, status=status.HTTP_200_OK)
+        return Response({
+            "code": 3,
+            "statusCode": status.HTTP_403_FORBIDDEN,
+            "message": "Forbidden! Bạn không có quyền truy cập vào tài nguyên này!"}, 
+            status=status.HTTP_403_FORBIDDEN)
        
     def put(self, request, pk):
         """ Cập nhật thông tin công ty """

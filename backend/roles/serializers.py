@@ -29,8 +29,6 @@ class RoleSerializers(serializers.ModelSerializer):
         ]
 
     def validate_permissions(self, data):
-        print("Bat dau validate_permissions")
-        print("permissions: ", data)
         # Kiểm tra tất cả các quyền truyền vào có tồn tại trong CSDL không
         permission_ids = data or []
 
@@ -61,15 +59,13 @@ class RoleSerializers(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        print("Bat dau create role serializer")
-        validated_data = to_snake_case(validated_data)
         # Check permissions
-        check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
-        if check_result["code"] == 1:
-            check_result.update({
-                    "statusCode": status.HTTP_403_FORBIDDEN,
-                })
-            return check_result
+        # check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
+        # if check_result["code"] == 1:
+        #     check_result.update({
+        #             "statusCode": status.HTTP_403_FORBIDDEN,
+        #         })
+        #     return check_result
         
         new_role = super().create(validated_data)
         return {
@@ -80,29 +76,10 @@ class RoleSerializers(serializers.ModelSerializer):
             }
          
     def update(self, instance, validated_data):
-        # Convert snake_case
-        validated_data = to_snake_case(validated_data)
-
-        # self.parital = True -> PATCH and self.partial = FALSE -> PUT
-        if self.partial:
-            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PATCH", module)
-            if check_result["code"] == 1:
-                check_result.update({
-                    "statusCode": status.HTTP_403_FORBIDDEN,
-                })
-                return check_result
-        else:
-            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PUT", module)
-            if check_result["code"] == 1:
-                check_result.update({
-                    "statusCode": status.HTTP_403_FORBIDDEN,
-                })
-                return check_result
-        
         # Check đối tượng cần update có tồn tại
         if not instance:
             return {
-                "code": 2,
+                "code": 4,
                 "statusCode": status.HTTP_404_NOT_FOUND,
                 "message": "Role not found!"
             }
@@ -110,7 +87,7 @@ class RoleSerializers(serializers.ModelSerializer):
         # Check đối tượng cần update có phải role Super Admin
         if instance.name == "Super Admin":
             return {
-                "code": 1,
+                "code": 3,
                 "statusCode": status.HTTP_403_FORBIDDEN,
                 "message": "Không được thay đổi Role của Super Admin!"
             }
@@ -130,6 +107,30 @@ class RoleSerializers(serializers.ModelSerializer):
             "statusCode": status.HTTP_200_OK,
             "message": "Role update successful!",
             "data": self.__class__(instance).data
+        }
+    
+    def delete(self, user_login: list):
+        if not self.instance:
+            return {
+                    "code": 4,
+                    "statusCode": status.HTTP_404_NOT_FOUND,
+                    "message": "User not found!"
+                }
+
+        # Check đối tượng cần update có phải role Super Admin
+        if self.instance.name == "Super Admin":
+            return {
+                "code": 3,
+                "statusCode": status.HTTP_403_FORBIDDEN,
+                "message": "Không được thay đổi Role của Super Admin!"
+            }
+        
+        instance_deleted = self.instance.soft_delete(user_login)
+        data = self.__class__(instance_deleted).data
+        return {
+            "code": 0,
+            "message": "Delete user success!",
+            "data": data
         }
 
         

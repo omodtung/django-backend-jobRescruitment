@@ -80,9 +80,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         if deleted_by:
             self.deleted_by = deleted_by
         self.save()
-
-    def delete(self, *args, **kwargs):
-        self.soft_delete()
+        return self
 
     class Meta:
         db_table = "users"

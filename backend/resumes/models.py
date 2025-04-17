@@ -1,17 +1,26 @@
 from django.db import models
 from django.utils.timezone import now
 from companies.models import Companies
+from users.models import User
 from jobs.models import Job 
+from datetime import datetime, timezone
+
 class Resume(models.Model):
+    id = models.BigAutoField(primary_key=True)
     email = models.EmailField(max_length=255)
-    userId = models.CharField(max_length=24)
-    companyId = models.ForeignKey(
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    company = models.ForeignKey(
         Companies,
         on_delete=models.SET_NULL,
         null=True,
         blank=True
     )
-    jobId= models.ForeignKey(
+    job = models.ForeignKey(
         Job,
         on_delete=models.SET_NULL,
         null=True,
@@ -20,16 +29,32 @@ class Resume(models.Model):
     history = models.JSONField(default=list, blank=True)
     url = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=50, blank=True)
-    startDate = models.DateField(null=True, blank=True)
-    endDate = models.DateField(null=True, blank=True)
-    createdAt = models.DateTimeField(auto_now_add=True)
-    updatedAt = models.DateTimeField(auto_now=True)
-    createdBy = models.JSONField(default=dict, blank=True)
-    updated_by = models.JSONField(default=dict, blank=True)
-    delete_by = models.JSONField(default=dict, blank=True)
-    isDeleted = models.BooleanField(default=False)
-    deletedAt = models.DateTimeField(null=True, blank=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.JSONField(
+        blank=True, null=True,
+        help_text="Object containing creator details, e.g., {'_id': ObjectID, 'email': string}"
+    )
+    updated_by = models.JSONField(
+        blank=True, null=True,
+        help_text="Object containing updater details, e.g., {'_id': ObjectID, 'email': string}"
+    )
+    deleted_by = models.JSONField(default=dict, blank=True)  # Corrected field name
+    
+    # Soft delete fields
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
+    def soft_delete(self, deleted_by=None):
+        now = datetime.now(timezone.utc)  # lấy thời gian UTC hiện tại
+        self.is_deleted = True
+        self.deleted_at = now
+        if deleted_by:
+            self.deleted_by = deleted_by
+        self.save()
+        return self
 
     def __str__(self):
         return self.email

@@ -3,63 +3,129 @@ from .models import Permissions
 from utils.CheckUtils import check_permission
 from rest_framework import status
 from .serializers import PermissionSerializers
+from utils.Convert import to_snake_case
+from django.apps import apps
+from django.core.paginator import Paginator
 
-module = "PERMISSION"
-path_not_id = "/api/v1/permissions"
-path_by_id = "/api/v1/permissions/<int:pk>"
+def find_all(qs):
+    """
+    qs: QueryDict (ví dụ request.GET) hoặc dict chứa các tham số:
+        - current, pageSize, sort, populate, fields, và các bộ lọc khác
+    """
+    Permissions = apps.get_model('permissions', 'Permissions')
+    model_fields = {f.name for f in Permissions._meta.fields}
+    related_fields = {rel.get_accessor_name() for rel in Permissions._meta.related_objects}
 
-def find_all(qs: str):
-    sort = qs.pop("sort", None)  # Sắp xếp
-    population = qs.pop("population", None)  # Nạp dữ liệu quan hệ
+    # ─── 1. Parse & validate pagination ───────────────────────────────
+    try:
+        page_size = int(qs.get('pageSize', 10))
+        if page_size <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        page_size = 10
 
-    # Lọc dữ liệu
-    filters = Q(is_deleted=False) # Taọ đối tượng Q Object chứa điều kiện lọc
-    for key, value in qs.items():
-        if isinstance(value, list):  # Nếu value là danh sách
-            filters &= Q(**{f"{key}__in": value})  # Sử dụng __in để lọc danh sách
+    try:
+        current_page = int(qs.get('current', 1))
+        if current_page <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        current_page = 1
+
+    # Remove pagination params so chúng không được xử lý lại ở filters
+    params = qs.copy()
+    params.pop('pageSize', None)
+    params.pop('current', None)
+
+    # ─── 2. Sort ────────────────────────────────────────────────────────
+    raw_sort = params.pop('sort', None)
+    sort = None
+    if isinstance(raw_sort, str):
+        # type: ignore
+        direction = '-' if raw_sort.startswith('-') else ''
+        field = raw_sort.lstrip('-')
+        if field in model_fields:
+            sort = f"{direction}{field}"
+    if not sort:
+        sort = 'id'  # default
+
+    # ─── 3. Population (select_related) ────────────────────────────────
+    raw_pop = params.pop('populate', None)
+    population = raw_pop if raw_pop in related_fields else None
+
+    # ─── 4. Fields (values/only) ───────────────────────────────────────
+    raw_fields = params.pop('fields', None)
+    fields = []
+    if isinstance(raw_fields, str):
+        # tách theo dấu phẩy, loại bỏ khoảng trắng
+        for f in [f.strip() for f in raw_fields.split(',')]:
+            # allow x.y syntax for related field
+            if '.' in f:
+                root, sub = f.split('.', 1)
+                if root in related_fields and sub in {field.name for field in Permissions._meta.get_field(root).related_model._meta.fields}:
+                    fields.append(f)
+            elif f in model_fields:
+                fields.append(f)
+
+    # ─── 5. Build filters ───────────────────────────────────────────────
+    filters = Q(is_deleted=False)
+    for key, value in params.items():
+        # chỉ chấp nhận các khóa nằm trong model_fields hoặc related_fields
+        base = key.split('__', 1)[0]
+        if base in model_fields or base in related_fields:
+            if isinstance(value, list):
+                filters &= Q(**{f"{key}__in": value})
+            else:
+                filters &= Q(**{key: value})
         else:
-            filters &= Q(**{key: value})
+            # bỏ qua các tham số không hợp lệ
+            continue
 
-    # Truy vấn dữ liệu + Population
-    return Permissions.objects.filter(filters).select_related(population).order_by(sort)
+    # ─── 6. Queryset ───────────────────────────────────────────────────
+    qs_obj = Permissions.objects.filter(filters)
+    qs_obj = qs_obj.order_by(sort)
 
-def find_one(id):
+    if population:
+        qs_obj = qs_obj.select_related(population)
+
+    if fields:
+        # nếu dùng values để trả về dict
+        qs_obj = qs_obj.values(*fields)
+
+    # ─── 7. Pagination ────────────────────────────────────────────────
+    paginator = Paginator(qs_obj, page_size)
+    try:
+        page = paginator.page(current_page)
+    except:
+        return {
+            "code": 4,
+            "statusCode": status.HTTP_404_NOT_FOUND,
+            "message": 'Page out of range',
+            "data": None
+        }
+
+    return {
+        "code": 0,
+        "statusCode": status.HTTP_200_OK,
+        "message": 'Fetch List Permissions with paginate',
+        "currentPage": current_page,
+        "pageSize": page_size,
+        "totalPage": paginator.num_pages,
+        "totalItem": paginator.count,
+        "data": list(page),   # nếu dùng values() sẽ là list of dicts
+    }
+
+def find_one(id: str):
     if not Permissions.objects.filter(id=id, is_deleted=False).exists():
-        return {"code": 1, "message": "Permission not found or deleted!"}
+        return {
+            "code": 4,
+            "statusCode": status.HTTP_404_NOT_FOUND,
+            "message": "Permission not found or deleted!",
+        }
 
     permission = Permissions.objects.get(id=id)
-    serialized = PermissionSerializers(permission)
-
+    data = PermissionSerializers(permission).data
     return {
         "code": 0,
         "message": "Fetch List Permission with paginate----",
-        "data": serialized.data
-    }
-
-def remove(id, user, path, method, module):
-    """ Check quyền truy cập của user """
-    check_result = check_permission(user.email, path, method, module)
-    if check_result["code"] == 1:
-        check_result.update({
-            "statusCode": status.HTTP_403_FORBIDDEN,
-        })
-        return check_result
-
-    if not Permissions.objects.filter(id=id, is_deleted=False).exists():
-        return {
-            "code": 2,
-            "statusCode": status.HTTP_404_NOT_FOUND,
-            "message": "Permission not found or deleted!"
-        }
-    isDeleted = Permissions.objects.get(id=id)
-    deleted_by = {
-        "_id": user.id,
-        "email": user.email
-    }
-    isDeleted.soft_delete(deleted_by)
-    isDeleted.save()
-    return {
-        "code": 0,
-        "message": "Delete permission successfully",
-        "data": PermissionSerializers(isDeleted).data
+        "data": data
     }

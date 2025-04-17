@@ -1,8 +1,10 @@
 from django.db import models
+from datetime import datetime, timezone
 
 # Create your models here.
 
 class Companies(models.Model):
+    id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
@@ -12,9 +14,18 @@ class Companies(models.Model):
     isDeleted = models.BooleanField(default=False)
     deletedAt = models.DateTimeField(blank=True, null=True)
     createdBy = models.JSONField(blank=True, null=True)
-    updated_by = models.JSONField(blank=True, null=True)
-    delete_by = models.JSONField(blank=True, null=True)
+    updatedBy = models.JSONField(blank=True, null=True)
+    deletedBy = models.JSONField(blank=True, null=True)
 
+    def soft_delete(self, deleted_by=None):
+    
+        now = datetime.now(timezone.utc)  # lấy thời gian UTC hiện tại
+        self.is_deleted = True
+        self.deleted_at = now
+        if deleted_by:
+            self.deleted_by = deleted_by
+        self.save()
+        return self
 
     class Meta:  
         db_table = "companies"

@@ -27,12 +27,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Thêm thông tin user vào token nếu muốn
         token['name'] = user.name
         token['email'] = user.email
+        token['roleId'] = user.role.id if user.role else None
         
         return token
     
     def validate(self, attrs):
-        print("Buoc2")
-        # Nếu nhận được 'username', đổi tên thành 'email'
         email = attrs.get('email')
         password = attrs.get('password')
 

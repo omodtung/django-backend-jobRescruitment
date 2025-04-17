@@ -51,3 +51,4 @@ class Role(models.Model):
         if deleted_by:
             self.deleted_by = deleted_by
         self.save()
+        return self

@@ -15,7 +15,7 @@ def check_permission(email: str, path: str, method: str, module: str):
         if not permissions.exists():
             return {
                 "code": 1,
-                "message": "User không có quyền truy cập!"
+                "message": "User login không có quyền truy cập!"
             }
 
         return {
@@ -25,6 +25,35 @@ def check_permission(email: str, path: str, method: str, module: str):
     except User.DoesNotExist:
         return {
             "code": 1,
-            "message": "User not found!"
+            "message": "User login not found!"
         }
     
+def check_permission_of_user(email, module, path, method):
+    # try:
+    #     user = User.objects.get(email=email)
+    #     role = user.role
+
+    #     # Kiểm tra permission tồn tại
+    #     permission = Permission.objects.filter(
+    #         module=module,
+    #         path=path,
+    #         method=method
+    #     ).first()
+
+    #     if not permission:
+    #         return False
+
+    #     # Kiểm tra xem role có permission này không (và chưa bị xóa mềm)
+    #     return RolePermission.objects.filter(
+    #         role=role,
+    #         permission=permission,
+    #         is_active=True,
+    #         is_deleted=False
+    #     ).exists()
+
+    # except ObjectDoesNotExist:
+    #     return False
+    # except Exception as e:
+    #     print(f"check_permission_of_user({email}, {module}, {path}, {method}) errors: {str(e)}")
+    #     return False
+    return True

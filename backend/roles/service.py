@@ -3,67 +3,143 @@ from .models import Role
 from utils.CheckUtils import check_permission
 from rest_framework import status
 from .serializers import RoleSerializers
+from utils.Convert import to_snake_case
+from django.core.paginator import Paginator
+from django.apps import apps
+from permissions.serializers import PermissionSerializers
+from permissions.models import Permissions
+import re
 
-def find_all(qs: str):
-    sort = qs.pop("sort", None)  # Sắp xếp
-    population = qs.pop("population", None)  # Nạp dữ liệu quan hệ
+def find_all(qs):
+    """
+    qs: QueryDict (ví dụ request.GET) hoặc dict chứa các tham số:
+        - current, pageSize, sort, populate, fields, và các bộ lọc khác
+    """
+    Role = apps.get_model('roles', 'Role')
+    model_fields = {f.name for f in Role._meta.fields}
+    related_fields = {rel.get_accessor_name() for rel in Role._meta.related_objects}
 
-    # Lọc dữ liệu
-    filters = Q(is_deleted=False) # Taọ đối tượng Q Object chứa điều kiện lọc
-    for key, value in qs.items():
-        if isinstance(value, list):  # Nếu value là danh sách
-            filters &= Q(**{f"{key}__in": value})  # Sử dụng __in để lọc danh sách
-        else:
-            filters &= Q(**{key: value})
+    # ─── 1. Parse & validate pagination ───────────────────────────────
+    try:
+        page_size = int(qs.get('pageSize', 10))
+        if page_size <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        page_size = 10
 
-    # Truy vấn dữ liệu + Population
-    return Role.objects.filter(filters).select_related(population).order_by(sort)
+    try:
+        current_page = int(qs.get('current', 1))
+        if current_page <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        current_page = 1
 
-def find_one(id):
+    # Remove pagination params so chúng không được xử lý lại ở filters
+    params = qs.copy()
+    params.pop('pageSize', None)
+    params.pop('current', None)
+
+    # ─── 2. Sort ────────────────────────────────────────────────────────
+    raw_sort = params.pop('sort', None)
+    sort = None
+    if isinstance(raw_sort, str):
+        # type: ignore
+        direction = '-' if raw_sort.startswith('-') else ''
+        field = raw_sort.lstrip('-')
+        if field in model_fields:
+            sort = f"{direction}{field}"
+    if not sort:
+        sort = 'id'  # default
+
+    # ─── 3. Population (select_related) ────────────────────────────────
+    raw_pop = params.pop('populate', None)
+    population = raw_pop if raw_pop in related_fields else None
+
+    # ─── 4. Fields (values/only) ───────────────────────────────────────
+    raw_fields = params.pop('fields', None)
+    fields = []
+    if isinstance(raw_fields, str):
+        # tách theo dấu phẩy, loại bỏ khoảng trắng
+        for f in [f.strip() for f in raw_fields.split(',')]:
+            # allow x.y syntax for related field
+            if '.' in f:
+                root, sub = f.split('.', 1)
+                if root in related_fields and sub in {field.name for field in User._meta.get_field(root).related_model._meta.fields}:
+                    fields.append(f)
+            elif f in model_fields:
+                fields.append(f)
+
+    # ─── 5. Build filters ───────────────────────────────────────────────
+    filters = Q(is_deleted=False)
+    regex_pattern = re.compile(r'^/(.*)/([iI]*)$')
+    for key, value in params.items():
+        base = key.split('__', 1)[0]
+        # chỉ chấp nhận những khóa thuộc model hoặc related
+        if base in model_fields or base in related_fields:
+            # nếu value là string và match regex syntax /pattern/flags
+            if isinstance(value, str):
+                m = regex_pattern.match(value)
+                if m and key == 'name':
+                    pattern, flags = m.groups()
+                    if 'i' in flags.lower():
+                        filters &= Q(**{f"{key}__iregex": pattern})
+                    else:
+                        filters &= Q(**{f"{key}__regex": pattern})
+                    continue
+
+            # xử lý list hoặc bình thường
+            if isinstance(value, list):
+                filters &= Q(**{f"{key}__in": value})
+            else:
+                filters &= Q(**{key: value})
+
+    # ─── 6. Queryset ───────────────────────────────────────────────────
+    qs_obj = Role.objects.filter(filters)
+    qs_obj = qs_obj.order_by(sort)
+
+    if population:
+        qs_obj = qs_obj.select_related(population)
+
+    if fields:
+        # nếu dùng values để trả về dict
+        qs_obj = qs_obj.values(*fields)
+
+    # ─── 7. Pagination ────────────────────────────────────────────────
+    paginator = Paginator(qs_obj, page_size)
+    try:
+        page = paginator.page(current_page)
+    except:
+        return {
+            "code": 4,
+            "statusCode": status.HTTP_404_NOT_FOUND,
+            "message": 'Page out of range',
+            "data": None
+        }
+
+    return {
+        "code": 0,
+        "statusCode": status.HTTP_200_OK,
+        "message": 'Fetch List User with paginate',
+        "currentPage": current_page,
+        "pageSize": page_size,
+        "totalPage": paginator.num_pages,
+        "totalItem": paginator.count,
+        "data": list(page),   # nếu dùng values() sẽ là list of dicts
+    }
+
+def find_one(id: str):
     if not Role.objects.filter(id=id, is_deleted=False).exists():
-        return {"code": 1, "message": "Role not found or deleted!"}
+        return {
+            "code": 4,
+            "statusCode": status.HTTP_404_NOT_FOUND,
+            "message": "Role not found or deleted!",
+        }
 
     role = Role.objects.get(id=id)
-    # permissions = [permission.id for permission in role.permissions.all()]
-
+    data = RoleSerializers(role).data
+    data["permissions"] = PermissionSerializers(role.permissions.all(), many=True).data
     return {
         "code": 0,
-        "message": "Fetch List User with paginate----",
-        "data": RoleSerializers(role).data
-    }
-
-def remove(id, user, path, method, module):
-    """ Check quyền truy cập của user """
-    check_result = check_permission(user.email, path, method, module)
-    if check_result["code"] == 1:
-        check_result.update({
-            "statusCode": status.HTTP_403_FORBIDDEN,
-        })
-        return check_result
-
-    if not Role.objects.filter(id=id, is_deleted=False).exists():
-        return {
-            "code": 2,
-            "statusCode": status.HTTP_404_NOT_FOUND,
-            "message": "Role not found or deleted!"
-        }
-    isDeleted = Role.objects.get(id=id)
-    if isDeleted.name == "Super Admin":
-        return {
-            "code": 1, 
-            "statusCode": status.HTTP_403_FORBIDDEN,
-            "message": "You cannot delete this Super Admin"
-        }
-    
-    deleted_by = {
-        "_id": user.id,
-        "email": user.email
-    }
-    isDeleted.soft_delete(deleted_by)
-    isDeleted.save()
-    return {
-        "code": 0,
-        "statusCode": status.HTTP_204_NO_CONTENT,
-        "message": "Delete user successfully",
-        "data": RoleSerializers(isDeleted).data
+        "message": "Fetch List Role with paginate----",
+        "data": data
     }

@@ -1,25 +1,23 @@
 from django.db.models import Q
-from .models import User
+from .models import Resume
 from utils.CheckUtils import check_permission
 from rest_framework import status
-from .serializers import UserSerializers
-from roles.serializers import RoleSerializers
+from .serializers import ResumeSerializers
 from companies.serializers import CompaniesSerializer
+from .serializers import ResumeSerializers
+from jobs.serializers import JobSerializers
 from utils.Convert import to_snake_case
 from django.apps import apps
 from django.core.paginator import Paginator
-from django.db.models import Q
-from django.apps import apps
-from rest_framework import status
 
 def find_all(qs):
     """
     qs: QueryDict (ví dụ request.GET) hoặc dict chứa các tham số:
         - current, pageSize, sort, populate, fields, và các bộ lọc khác
     """
-    User = apps.get_model('users', 'User')
-    model_fields = {f.name for f in User._meta.fields}
-    related_fields = {rel.get_accessor_name() for rel in User._meta.related_objects}
+    Resume = apps.get_model('resumes', 'Resume')
+    model_fields = {f.name for f in Resume._meta.fields}
+    related_fields = {rel.get_accessor_name() for rel in Resume._meta.related_objects}
 
     # ─── 1. Parse & validate pagination ───────────────────────────────
     try:
@@ -66,7 +64,7 @@ def find_all(qs):
             # allow x.y syntax for related field
             if '.' in f:
                 root, sub = f.split('.', 1)
-                if root in related_fields and sub in {field.name for field in User._meta.get_field(root).related_model._meta.fields}:
+                if root in related_fields and sub in {field.name for field in Resume._meta.get_field(root).related_model._meta.fields}:
                     fields.append(f)
             elif f in model_fields:
                 fields.append(f)
@@ -86,7 +84,7 @@ def find_all(qs):
             continue
 
     # ─── 6. Queryset ───────────────────────────────────────────────────
-    qs_obj = User.objects.filter(filters)
+    qs_obj = Resume.objects.filter(filters)
     qs_obj = qs_obj.order_by(sort)
 
     if population:
@@ -107,32 +105,39 @@ def find_all(qs):
             "message": 'Page out of range',
             "data": None
         }
+    
+    serialized_data = ResumeSerializers(list(page), many=True).data  # đây là list các dict
+
+    for i, item in enumerate(list(page)):
+        serialized_data[i]["companyId"] = CompaniesSerializer(item.company).data if item.company else None
+        serialized_data[i]["jobId"] = JobSerializers(item.job).data if item.job else None
 
     return {
         "code": 0,
         "statusCode": status.HTTP_200_OK,
-        "message": 'Fetch List User with paginate',
+        "message": 'Fetch List Resume with paginate',
         "currentPage": current_page,
         "pageSize": page_size,
         "totalPage": paginator.num_pages,
         "totalItem": paginator.count,
-        "data": list(page),   # nếu dùng values() sẽ là list of dicts
+        "data": serialized_data, 
     }
 
 def find_one(id: str):
-    if not User.objects.filter(id=id, is_deleted=False).exists():
+    if not Resume.objects.filter(id=id, is_deleted=False).exists():
         return {
             "code": 4,
             "statusCode": status.HTTP_404_NOT_FOUND,
-            "message": "User not found or deleted!",
+            "message": "Resume not found or deleted!",
         }
 
-    user = User.objects.select_related('role').get(id=id)
-    data = UserSerializers(user).data
-    data["role"] = RoleSerializers(user.role).data if user.role else None
-    data["company"] = CompaniesSerializer(user.company).data if user.company else None
+    resume = Resume.objects.get(id=id)
+    data = ResumeSerializers(resume).data
+    data["company"] = CompaniesSerializer(resume.company).data if resume.company else None
+    data["job"] = JobSerializers(resume.job).data if resume.job else None
     return {
         "code": 0,
-        "message": "Fetch List User with paginate----",
+        "message": "Fetch List Resume with paginate----",
         "data": data
     }
+

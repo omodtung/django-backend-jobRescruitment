@@ -2,9 +2,7 @@ from .models import Job
 from roles.models import Role
 from companies.models import Companies
 from rest_framework import serializers
-import re
-from django.contrib.auth.hashers import make_password
-from utils.Convert import to_snake_case
+from companies.serializers import CompaniesSerializer
 from utils.CheckUtils import check_permission
 from rest_framework import status
 
@@ -35,59 +33,25 @@ class JobSerializers(serializers.ModelSerializer):
         ]
     
     def validate_company(self, company):
-        """ 
-        Do role nhận vào từ client là ForeignKey nên lấy id phải dùng role.id 
-        nếu không sẽ mặc định trả về role.name
-        """
-        print("company: ", company)
         if not company:
             return company
         if not Companies.objects.filter(id=company.id).exists():
             raise serializers.ValidationError("Company không tồn tại.")
-        return company.id  # ✅ Phải trả về giá trị đã kiểm tra (là ID)
+        return company
 
 
     def create(self, validated_data):
-        print("Bat dau tao")
-        # Check permissions
-        check_result = check_permission(validated_data["created_by"].get("email"), path_not_id, "POST", module)
-        if check_result["code"] == 1:
-            check_result.update({
-                    "statusCode": status.HTTP_403_FORBIDDEN,
-                })
-            return check_result
-        
-        # Convert 'company' to 'company_id'
-        validated_data["company_id"] = validated_data.pop("company", None)
-
         new_job = super().create(validated_data)
+        data = self.__class__(new_job).data
+        data["company"] = CompaniesSerializer(new_job.company).data if new_job.company else None
         return {
                 "code": 0,
                 "statusCode": status.HTTP_201_CREATED,
                 "message": "Job create successful!",
-                "result": self.__class__(new_job).data
+                "data": data
             }
     
     def update(self, instance, validated_data):
-        # Convert snake_case
-        validated_data = to_snake_case(validated_data)
-
-        # self.parital = True -> PATCH and self.partial = FALSE -> PUT
-        if self.partial:
-            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PATCH", module)
-            if check_result["code"] == 1:
-                check_result.update({
-                    "statusCode": status.HTTP_403_FORBIDDEN,
-                })
-                return check_result
-        else:
-            check_result = check_permission(validated_data["updated_by"].get("email"), path_by_id, "PUT", module)
-            if check_result["code"] == 1:
-                check_result.update({
-                    "statusCode": status.HTTP_403_FORBIDDEN,
-                })
-                return check_result
-            
         # Check đối tượng cần update có tồn tại
         if not instance:
             return {
@@ -101,10 +65,35 @@ class JobSerializers(serializers.ModelSerializer):
             setattr(instance, attr, value)
         
         instance.save()  # Lưu lại đối tượng đã được cập nhật
+        data = self.__class__(instance).data
+        data["company"] = CompaniesSerializer(instance.company).data if instance.company else None
         return {
             "code": 0,
             "statusCode": status.HTTP_200_OK,
             "message": "Job update successful!",
-            "data": self.__class__(instance).data
+            "data": data
         }
         
+    def delete(self, user_login: list):
+        if not self.instance:
+            return {
+                    "code": 4,
+                    "statusCode": status.HTTP_404_NOT_FOUND,
+                    "message": "User not found!"
+                }
+
+        # Check đối tượng cần update có phải role Super Admin
+        if self.instance.email == "superadmin@gmail.com" or self.instance.is_superuser:
+            return {
+                "code": 3,
+                "statusCode": status.HTTP_403_FORBIDDEN,
+                "message": "Không được xóa Super Admin!"
+            }
+        
+        instance_deleted = self.instance.soft_delete(user_login)
+        data = self.__class__(instance_deleted).data
+        return {
+            "code": 0,
+            "message": "Delete user success!",
+            "data": data
+        }
