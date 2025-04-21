@@ -115,6 +115,8 @@ def find_all(qs):
             "message": 'Page out of range',
             "data": None
         }
+    
+    serialized_data = RoleSerializers(page, many=True).data  # đã là list of dicts
 
     return {
         "code": 0,
@@ -124,7 +126,7 @@ def find_all(qs):
         "pageSize": page_size,
         "totalPage": paginator.num_pages,
         "totalItem": paginator.count,
-        "data": list(page),   # nếu dùng values() sẽ là list of dicts
+        "data": serialized_data,   # nếu dùng values() sẽ là list of dicts
     }
 
 def find_one(id: str):

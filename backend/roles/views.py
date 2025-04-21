@@ -48,7 +48,7 @@ class RoleList(APIView):
             if result["statusCode"] == 404:
                 return Response(result, status=status.HTTP_404_NOT_FOUND)
 
-            serializer = RoleSerializers(result["data"], many=True)
+            # serializer = RoleSerializers(result["data"], many=True)
             
             return Response({
                 "code": 0,
@@ -61,7 +61,7 @@ class RoleList(APIView):
                         "pages": result["totalPage"],
                         "total": result["totalItem"],
                     },
-                    "result": serializer.data
+                    "result": result["data"]
                 }
             }, status=status.HTTP_200_OK)
         return Response({

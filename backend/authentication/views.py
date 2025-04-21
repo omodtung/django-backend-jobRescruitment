@@ -108,19 +108,12 @@ class RegistertApiView(APIView):
                 data["company"] = None
 
         # Handle role
-        if "role" in data and isinstance(data["role"], dict):
-            role_id = data["role"].get("_id")
-            if role_id:
-                try:
-                    data["role"] = role_id if role_id else None
-                except User.DoesNotExist:
-                    return Response({
-                        "statusCode": status.HTTP_404_NOT_FOUND,
-                        "message": "Khong tim thay role!"
-                    }, status=status.HTTP_404_NOT_FOUND)
-            else:
-                data["role"] = None
-        # data["register"] = True
+        role_narmal_user, created = Role.objects.get_or_create(
+                name="NORMAL_USER",
+                defaults={"description": "User NORMAL_USER"}
+            )
+        data["role"] = role_narmal_user.id
+        
         serializer = UserSerializers(data=data)
         if serializer.is_valid():
             result = serializer.save()

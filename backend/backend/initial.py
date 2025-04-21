@@ -100,6 +100,15 @@ def create_user():
     if not created:
         print("User role already exists.")
 
+    """ Tao role NORMAL_USER """
+    role_narmal_user, created = Role.objects.get_or_create(
+        name="NORMAL_USER",
+        defaults={"description": "User NORMAL_USER"}
+    )
+    # Nếu role không tồn tại, gán permissions vào role
+    if not created:
+        print("User role already exists.")
+
 def run_initial_setup():
     print("Running initial setup...")
     permission_is_created = create_permissions()

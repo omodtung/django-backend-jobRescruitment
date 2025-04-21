@@ -14,12 +14,25 @@ from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 import os
+from django.conf import settings
+from django.conf.urls.static import static
+from corsheaders.defaults import default_headers
 load_dotenv()
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+MEDIA_URL = '/images/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'images')
+
+urlpatterns = [
+    # ... các route api của bạn
+]
+
+# Phục vụ ảnh trong chế độ phát triển
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -81,13 +94,20 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CorsMiddleware cần phải đứng trước các middleware khác
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 ]
+
+# Cho phép các header đặc biệt
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'authorization',
+    'folder_type',
+]
+
 
 ROOT_URLCONF = 'backend.urls'
 

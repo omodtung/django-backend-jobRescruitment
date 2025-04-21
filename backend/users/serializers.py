@@ -43,9 +43,9 @@ class UserSerializers(serializers.ModelSerializer):
             raise serializers.ValidationError("Email không đúng định dạng.")
 
         """ Kiểm tra email đã tồn tại """
-        if User.objects.filter(email=value).exists():
-            print("Email đã được sử dụng.")
-            raise serializers.ValidationError("Email đã được sử dụng.")
+        # if User.objects.filter(email=value).exists():
+        #     print("Email đã được sử dụng.")
+        #     raise serializers.ValidationError("Email đã được sử dụng.")
 
         return value
     

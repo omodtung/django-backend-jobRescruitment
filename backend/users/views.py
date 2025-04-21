@@ -125,6 +125,74 @@ class UserList(APIView):
                          "message": "Forbidden! Bạn không có quyền truy cập vào tài nguyên này!"}, 
                          status=status.HTTP_403_FORBIDDEN)
 
+    def patch(self, request):
+            # Check user login by jwt
+        if not request.user:
+            return Response({
+                "code": 1,
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized! Vui lòng đăng nhập!"}, 
+                status=status.HTTP_401_UNAUTHORIZED)
+        
+        user_login = request.user
+        data = deepcopy(request.data)
+        if not "updatedBy" in data:
+            data["updatedBy"] = {
+                "_id": user_login.id,
+                "email": user_login.email
+            }
+
+        # Kiem tra bien company va role
+        if "company" in data and isinstance(data["company"], dict):
+            company_id = data["company"].get("_id")
+            if company_id:
+                try:
+                    data["company"] = company_id if company_id else None
+                except Companies.DoesNotExist:
+                    return Response({
+                            "statusCode": status.HTTP_404_NOT_FOUND,
+                            "message": "Khong tim thay company!"
+                        }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                data["company"] = None
+
+        # Handle role
+        if "role" in data and isinstance(data["role"], dict):
+            role_id = data["role"].get("_id")
+            if role_id:
+                try:
+                    data["role"] = role_id if role_id else None
+                except User.DoesNotExist:
+                    return Response({
+                        "statusCode": status.HTTP_404_NOT_FOUND,
+                        "message": "Khong tim thay role!"
+                    }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                data["role"] = None
+
+            # Check permission
+        if check_permission_of_user(request.user.email, module, path_by_id, "PATCH"):
+            instance_update = self.get_object(data["_id"])
+
+            # Update partial user
+            serializer = UserSerializers(instance_update, data=data, partial=True)
+            if serializer.is_valid():
+                result = serializer.save()
+                if result["code"] == 3:
+                    return Response(result, status=status.HTTP_403_FORBIDDEN)
+                if result["code"] == 4:
+                    return Response(result, status=status.HTTP_404_NOT_FOUND)
+                return Response(result, status=status.HTTP_200_OK)
+            return Response({
+                "code": 1,
+                "statusCode": status.HTTP_400_BAD_REQUEST,
+                "message": get_error_message(serializer.errors)}, 
+                status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "code": 3,
+            "statusCode": status.HTTP_403_FORBIDDEN,
+            "message": "Forbidden! Bạn không có quyền truy cập vào tài nguyên này!"}, 
+            status=status.HTTP_403_FORBIDDEN)
 class UserDetail(APIView):
     def get_permissions(self):
         if self.request.method == 'DELETE' or self.request.method == 'PATCH':

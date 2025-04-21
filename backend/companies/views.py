@@ -139,7 +139,7 @@ class CompanyDetail(APIView):
             "message": "Forbidden! Bạn không có quyền truy cập vào tài nguyên này!"}, 
             status=status.HTTP_403_FORBIDDEN)
        
-    def put(self, request, pk):
+    def patch(self, request, pk):
         """ Cập nhật thông tin công ty """
         company = self.get_object(pk)
         if company is None:

@@ -8,7 +8,7 @@ from rest_framework import status
 
 module = "ROLE"
 path_not_id = "/api/v1/roles"
-path_by_id = "/api/v1/roles/<int:pk>"
+path_by_id = "/api/v1/roles/:id"
 
 class RoleSerializers(serializers.ModelSerializer):
     # Custom ten bien truoc khi response
@@ -95,18 +95,19 @@ class RoleSerializers(serializers.ModelSerializer):
 
         # Cập nhật các trường khác
         if "permissions" in validated_data:
-            permission_ids = [permission.id for permission in validated_data.pop("permissions", None)]
+            permission_ids = [permission for permission in validated_data.pop("permissions", None)]
             instance.permissions.set(permission_ids)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         instance.save()
+        data = self.__class__(instance).data
         return {
             "code": 0,
             "statusCode": status.HTTP_200_OK,
             "message": "Role update successful!",
-            "data": self.__class__(instance).data
+            "data": data
         }
     
     def delete(self, user_login: list):
