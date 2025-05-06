@@ -19,6 +19,12 @@ from django.conf.urls.static import static
 from corsheaders.defaults import default_headers
 load_dotenv()
 
+# Lấy API Key từ file .env
+OPENAI_API_KEY = os.getenv("OPEN_API_KEY")
+
+# Kiểm tra nếu API Key không tồn tại
+if not OPENAI_API_KEY:
+    raise ValueError("OPEN_API_KEY is not set in the .env file")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -85,6 +91,7 @@ INSTALLED_APPS = [
     "resumes" ,
     "file" ,
     "companies",
+    "open_ai",
     "rest_framework_simplejwt",
     "rest_framework",
     'rest_framework_simplejwt.token_blacklist',  # Để hỗ trợ logout

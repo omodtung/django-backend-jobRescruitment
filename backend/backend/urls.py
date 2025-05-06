@@ -13,7 +13,8 @@ urlpatterns = [
     path('api/v1/permissions', include('permissions.urls')),
     path('api/v1/resumes', include('resumes.urls')),
     path('api/v1/auth', include('authentication.urls'), name='token_obtain_pair'),
-    path('api/v1/files', include('file.urls'))
+    path('api/v1/files', include('file.urls')),
+    path('api/v1/open-ai', include('open_ai.urls')),
 ]
 
 # Serve media files during development
