@@ -10,7 +10,7 @@ from utils.CheckUtils import check_permission_of_user
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from copy import deepcopy
 from django.core.paginator import Paginator
-from .service import find_all, find_one
+from .service import find_all, find_one, find_by_user
 from companies.models import Companies
 from jobs.models import Job
 
@@ -75,6 +75,7 @@ class ResumeList(APIView):
         user_login = request.user
             # Add info createdBy, updatedBy to request.data
         data = deepcopy(request.data)
+        print("data body resume: ", data)
         if not "createdBy" in data:
             data["createdBy"] = {
                 "_id": user_login.id,
@@ -85,20 +86,10 @@ class ResumeList(APIView):
                 "_id": user_login.id,
                 "email": user_login.email
             }
-
-        # Kiem tra bien company va role
-        if isinstance(data["company"], dict):
-            company_id = data["company"].get("_id")
-            if not company_id:
-                data["company"] = None
-            else:
-                data["company"] = int(company_id)
-        if isinstance(data["job"], dict):
-            job_id = data["job"].get("_id")
-            if not job_id:
-                data["job"] = None
-            else:
-                data["job"] = int(job_id)
+            
+        # ✅ Auto set email if not provided
+        if "email" not in data or not data["email"]:
+            data["email"] = user_login.email
 
             # Check permission
         if check_permission_of_user(request.user.email, module, path_not_id, "POST"):
@@ -221,3 +212,17 @@ class ResumeDetail(APIView):
         if response["code"] == 2:
             return Response(response, status=status.HTTP_404_NOT_FOUND)
         return Response(response, status=status.HTTP_204_NO_CONTENT)
+    
+class ResumeByUser(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+            # Check user login by jwt
+        if not request.user:
+            return Response({
+                "code": 1,
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized! Vui lòng đăng nhập!"}, 
+                status=status.HTTP_401_UNAUTHORIZED)
+        response = find_by_user(request.user.email)
+        return Response(response, status = status.HTTP_200_OK)

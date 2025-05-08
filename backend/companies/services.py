@@ -125,7 +125,7 @@ def find_all(qs):
     }
 
 def find_one(id: str):
-    if not Companies.objects.filter(id=id, is_deleted=False).exists():
+    if not Companies.objects.filter(id=id, isDeleted=False).exists():
         return {
             "code": 4,
             "statusCode": status.HTTP_404_NOT_FOUND,

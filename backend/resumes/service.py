@@ -4,11 +4,11 @@ from utils.CheckUtils import check_permission
 from rest_framework import status
 from .serializers import ResumeSerializers
 from companies.serializers import CompaniesSerializer
-from .serializers import ResumeSerializers
 from jobs.serializers import JobSerializers
 from utils.Convert import to_snake_case
 from django.apps import apps
 from django.core.paginator import Paginator
+from users.models import User
 
 def find_all(qs):
     """
@@ -133,11 +133,26 @@ def find_one(id: str):
 
     resume = Resume.objects.get(id=id)
     data = ResumeSerializers(resume).data
-    data["company"] = CompaniesSerializer(resume.company).data if resume.company else None
-    data["job"] = JobSerializers(resume.job).data if resume.job else None
     return {
         "code": 0,
         "message": "Fetch List Resume with paginate----",
         "data": data
     }
 
+def find_by_user(email):
+    try:
+        resumes = Resume.objects.filter(email=email, is_deleted=False)
+        serialized = ResumeSerializers(resumes, many=True)
+        return {
+            "code": 0,
+            "message": "Fetch List Resume By User with paginate----",
+            "statusCode": status.HTTP_200_OK,
+            "data": serialized.data
+        }
+    except User.DoesNotExist:
+        return {
+            "error": "Resumes not found",
+            "message": "Resumes not found",
+            "statusCode": status.HTTP_404_NOT_FOUND,
+            "data": []
+        }

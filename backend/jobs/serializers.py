@@ -13,6 +13,14 @@ path_by_id = "/api/v1/jobs/<int:pk>"
 class JobSerializers(serializers.ModelSerializer):
     # Setup ten key truoc khi tra ve client
     _id = serializers.JSONField(source="id", required=False, read_only=False)
+
+    companyId = serializers.PrimaryKeyRelatedField(
+        source='company',
+        queryset=Companies.objects.all(),
+        write_only=True
+    )
+    company = CompaniesSerializer(read_only=True)
+
     createdBy = serializers.JSONField(source="created_by", required=False, read_only=False)
     updatedBy = serializers.JSONField(source="updated_by", required=False, read_only=False)
     createdAt = serializers.DateTimeField(source="created_at", required=False, read_only=False, allow_null=True)
@@ -27,23 +35,23 @@ class JobSerializers(serializers.ModelSerializer):
     class Meta:
         model = Job  
         fields = [
-            "_id", "name", "skills", "company", "location", "salary", "quantity",
+            "_id", "name", "skills","companyId", "company", "location", "salary", "quantity",
             "level", "description", "startDate", "endDate", "createdBy", "updatedBy", 
             "createdAt", "updatedAt", "deletedBy", "deletedAt", "isDeleted", "isActive"
         ]
     
-    def validate_company(self, company):
-        if not company:
-            return company
-        if not Companies.objects.filter(id=company.id).exists():
-            raise serializers.ValidationError("Company không tồn tại.")
-        return company
+    # def validate_company(self, company):
+    #     if not company:
+    #         return company
+    #     if not Companies.objects.filter(id=company._id).exists():
+    #         raise serializers.ValidationError("Company không tồn tại.")
+    #     return company
 
 
     def create(self, validated_data):
         new_job = super().create(validated_data)
         data = self.__class__(new_job).data
-        data["company"] = CompaniesSerializer(new_job.company).data if new_job.company else None
+        # data["company"] = CompaniesSerializer(new_job.company).data if new_job.company else None
         return {
                 "code": 0,
                 "statusCode": status.HTTP_201_CREATED,

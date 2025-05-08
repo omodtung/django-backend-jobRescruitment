@@ -83,12 +83,15 @@ class JobList(APIView):
             }
 
         # Kiem tra bien company
-        if isinstance(data["company"], dict):
+        if isinstance(data.get("company"), dict):
             company_id = data["company"].get("_id")
-            if not company_id:
-                data["company"] = None
+            data.pop("company", None)
+            if company_id:
+                data["companyId"] = int(company_id)
             else:
-                data["company"] = int(company_id)
+                data["companyId"] = None
+        else:
+            data["companyId"] = data.pop("company", None)
 
             # Check permission
         if check_permission_of_user(request.user.email, module, path_not_id, "POST"):
@@ -147,18 +150,15 @@ class JobDetail(APIView):
             }
 
         # Kiem tra bien company
-        if "company" in data and isinstance(data["company"], dict):
+        if isinstance(data.get("company"), dict):
             company_id = data["company"].get("_id")
+            data.pop("company", None)
             if company_id:
-                try:
-                    data["company"] = company_id if company_id else None
-                except Companies.DoesNotExist:
-                    return Response({
-                            "statusCode": status.HTTP_404_NOT_FOUND,
-                            "message": "Khong tim thay company!"
-                        }, status=status.HTTP_404_NOT_FOUND)
+                data["companyId"] = int(company_id)
             else:
-                data["company"] = None
+                data["companyId"] = None
+        else:
+            data["companyId"] = data.pop("company", None)
 
             # Check permission
         if check_permission_of_user(request.user.email, module, path_by_id, "PATCH"):
