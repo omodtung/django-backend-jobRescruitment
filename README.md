@@ -1,13 +1,14 @@
-django-admin startproject backend
--> tao ra project backend va backend con
-python manage.py startapp api 
-->tao ra folder api cung cap voi backend con 
+python3 -m venv env
+source env/bin/activate  # Trên Linux/macOS
+pip install -r requirements.txt
 
+# Cài đặt PostgreSQL
+# Tạo sẵn db trên PostgreSQL
+# Sửa đổi password db của ứng dụng
+
+cd ./backend/
+
+# Chạy lần lượt các lệnh sau
 python manage.py makemigrations
-
 python manage.py migrate
-
 python manage.py runserver
-
-
-pip install -r requirements
