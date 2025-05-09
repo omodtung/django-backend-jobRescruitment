@@ -88,12 +88,14 @@ class ResumeSerializers(serializers.ModelSerializer):
         return user
 
     def create(self, validated_data):
+        print("validated_data resume: ",validated_data)
+        validated_data["status"] = "PENDING"
         new_resume = super().create(validated_data)
         data = self.__class__(new_resume).data
         return {
                 "code": 0,
                 "statusCode": status.HTTP_201_CREATED,
-                "message": "Job create successful!",
+                "message": "Resume create successful!",
                 "data": data
             }
 

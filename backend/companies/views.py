@@ -151,16 +151,23 @@ class CompanyDetail(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        """ Xóa công ty """
-        company = self.get_object(pk)
-        if company is None:
-            return Response({"error": "Company not found"}, status=status.HTTP_404_NOT_FOUND)
-        company.delete()
-
-        return Response({
-           "statusCode": 200,
-           "message": "",
-           "data": {
-               "deleted": 1
-           }
-       })
+        if not request.user:
+            return Response({
+                "code": 1,
+                "statusCode": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized! Vui lòng đăng nhập!"}, 
+                status=status.HTTP_401_UNAUTHORIZED)
+        if not "deletedBy" in request.data:
+            deleted_by = {
+                "_id": request.user.id,
+                "email": request.user.email
+            }
+        else:
+            deleted_by = request.data["deletedBy"]
+    
+        instance_delete = self.get_object(pk)
+        serializer = CompaniesSerializer(instance_delete)
+        result = serializer.delete(deleted_by)
+        if result["code"] == 4:
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        return Response(result, status=status.HTTP_200_OK)

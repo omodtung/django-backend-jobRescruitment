@@ -89,14 +89,6 @@ class JobSerializers(serializers.ModelSerializer):
                     "statusCode": status.HTTP_404_NOT_FOUND,
                     "message": "User not found!"
                 }
-
-        # Check đối tượng cần update có phải role Super Admin
-        if self.instance.email == "superadmin@gmail.com" or self.instance.is_superuser:
-            return {
-                "code": 3,
-                "statusCode": status.HTTP_403_FORBIDDEN,
-                "message": "Không được xóa Super Admin!"
-            }
         
         instance_deleted = self.instance.soft_delete(user_login)
         data = self.__class__(instance_deleted).data

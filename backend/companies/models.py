@@ -20,10 +20,10 @@ class Companies(models.Model):
     def soft_delete(self, deleted_by=None):
     
         now = datetime.now(timezone.utc)  # lấy thời gian UTC hiện tại
-        self.is_deleted = True
-        self.deleted_at = now
+        self.isDeleted = True
+        self.deletedAt = now
         if deleted_by:
-            self.deleted_by = deleted_by
+            self.deletedBy = deleted_by
         self.save()
         return self
 
